@@ -10,6 +10,7 @@ const STORE_KEY = 'map-tagger-state';
     selectedRegions: null,
     completedTaskCodes: [],
     showCompleted: true,
+    hidePlacedTasks: false,
     activeTab: 'tasks'
   };
   let nextId = 1;
@@ -226,6 +227,7 @@ const STORE_KEY = 'map-tagger-state';
         doneSet = new Set(state.completedTaskCodes);
         state.zoom = Math.max(0.25, Math.min(4, Number(state.zoom) || 1));
         state.showCompleted = typeof state.showCompleted === 'boolean' ? state.showCompleted : true;
+        state.hidePlacedTasks = typeof state.hidePlacedTasks === 'boolean' ? state.hidePlacedTasks : false;
         state.activeTab = state.activeTab === 'map' ? 'map' : 'tasks';
         nextId = state.placements.reduce((m, p) => Math.max(m, Number(p.id) || 0), 0) + 1;
         hadSaved = true;
@@ -237,6 +239,7 @@ const STORE_KEY = 'map-tagger-state';
       state.selectedRegions = null; // initialized after REGION_CODES is declared
     }
     if (showCompletedCheck) showCompletedCheck.checked = state.showCompleted;
+    if (hidePlacedCheck) hidePlacedCheck.checked = state.hidePlacedTasks;
     if (state.activeTab === 'map') tabBtnMap.click(); else tabBtnTasks.click();
     render();
     renderRegionFilters();
@@ -422,6 +425,26 @@ const STORE_KEY = 'map-tagger-state';
       const index = state.placements.findIndex(p => p.id === placement.id);
       renderPin(placement, index);
     });
+    renderRouteConnector();
+  }
+
+  function renderRouteConnector() {
+    const existing = document.querySelector('.route-connector');
+    if (existing) existing.remove();
+    const current = getCurrentPlacement();
+    const next = getNextPlacement();
+    if (!current || !next) return;
+    const dx = next.x - current.x;
+    const dy = next.y - current.y;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+    const line = document.createElement('div');
+    line.className = 'route-connector';
+    line.style.left = current.x + 'px';
+    line.style.top = current.y-10 + 'px';
+    line.style.width = length + 'px';
+    line.style.transform = 'rotate(' + angle + 'deg)';
+    mapWrapper.insertBefore(line, mapImage.nextSibling);
   }
 
   function render() {
@@ -461,10 +484,16 @@ const STORE_KEY = 'map-tagger-state';
       isDone = doneSet.has(placement.taskCode);
     }
     const currentPlacement = getCurrentPlacement();
+    const nextPlacement = getNextPlacement();
     const isCurrent = currentPlacement && currentPlacement.id === placement.id;
+    const isNext = !isCurrent && nextPlacement && nextPlacement.id === placement.id;
     const isCustom = !!placement.customMarker;
-    pin.className = 'pin' + (isDone ? ' done' : '') + (isCurrent ? ' current' : '') + (isCustom ? ' custom-marker' : '');
+    pin.className = 'pin' + (isDone ? ' done' : '') + (isCurrent ? ' current' : '') + (isNext ? ' next' : '') + (isCustom ? ' custom-marker' : '');
     pin.dataset.id = placement.id;
+    // Route-order-based stacking: tasks earlier in the route sit above
+    // tasks done later, so upcoming pins are never buried under future ones.
+    // Done pins are pinned to the lowest layer via the .pin.done CSS rule.
+    pin.style.setProperty('--order-z', String(100 + (state.placements.length - index)));
     pin.setAttribute('role', 'button');
     pin.setAttribute('tabindex', '0');
     pin.setAttribute('aria-label', task ? 'View details for ' + task.code + ': ' + task.text : 'View placed task details');
@@ -756,6 +785,8 @@ const STORE_KEY = 'map-tagger-state';
         pin.classList.add('selected', 'highlighted');
         setTimeout(() => pin.classList.remove('highlighted'), 1200);
       }
+      const routeLi = routeList.querySelector('li[data-placement-id="' + placement.id + '"]');
+      if (routeLi) routeLi.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       // If this placement is already open in the info pane, avoid
       // calling showTaskInfo again — that triggers a full route-list
       // re-render and textarea auto-resize which causes a visual jitter.
@@ -1025,6 +1056,7 @@ const STORE_KEY = 'map-tagger-state';
       el.style.left = placement.x + 'px';
       el.style.top = placement.y + 'px';
     }
+    renderRouteConnector();
   });
 
   document.addEventListener('keydown', (e) => {
@@ -1251,6 +1283,7 @@ const STORE_KEY = 'map-tagger-state';
   const taskListEl = document.getElementById('taskList');
   const taskProgress = document.getElementById('taskProgress');
   const showCompletedCheck = document.getElementById('showCompletedCheck');
+  const hidePlacedCheck = document.getElementById('hidePlacedCheck');
 
   function renderRegionFilters() {
     if (!Array.isArray(state.selectedRegions)) {
@@ -1296,6 +1329,9 @@ const STORE_KEY = 'map-tagger-state';
       const isDone = doneSet.has(task.code);
       if (isDone) doneCount++;
       if (isDone && !state.showCompleted) return;
+      const placement = state.placements.find(p => p.taskCode === task.code);
+      const isPlaced = !!placement;
+      if (isPlaced && state.hidePlacedTasks) return;
       totalCount++;
 
       const li = document.createElement('li');
@@ -1360,8 +1396,6 @@ const STORE_KEY = 'map-tagger-state';
         draggingTaskCode = null;
       });
 
-      const placement = state.placements.find(p => p.taskCode === task.code);
-      const isPlaced = !!placement;
       if (isPlaced) li.classList.add('task-placed');
 
       const difficultyRow = document.createElement('div');
@@ -1406,6 +1440,11 @@ const STORE_KEY = 'map-tagger-state';
   taskSearch.addEventListener('input', renderTasks);
   showCompletedCheck.onchange = () => {
     state.showCompleted = showCompletedCheck.checked;
+    renderTasks();
+    saveState();
+  };
+  hidePlacedCheck.onchange = () => {
+    state.hidePlacedTasks = hidePlacedCheck.checked;
     renderTasks();
     saveState();
   };

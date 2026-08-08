@@ -132,9 +132,9 @@
     height: 28px;
     transform: translate(-50%, -100%);
     cursor: pointer;
-    z-index: 10;
+    z-index: var(--order-z, 10);
   }
-  .pin.dragging { cursor: grabbing; z-index: 20; }
+  .pin.dragging { cursor: grabbing; z-index: 2000; }
   .pin.drag-preview { opacity: 0.85; filter: drop-shadow(0 6px 14px rgba(0,0,0,0.6)); pointer-events: none; z-index: 9999; }
   .pin-dot {
     position: absolute;
@@ -185,7 +185,7 @@
     box-shadow: 0 0 0 4px rgba(255,255,255,0.22), 0 0 14px rgba(255,255,255,0.65);
     /* z-index: 40; */
   }
-  .pin.selected { z-index: 40; }
+  .pin.selected { z-index: 3000; }
   .pin.custom-marker .pin-dot {
     background: #f0b96b;
     border-color: #fff;
@@ -194,7 +194,7 @@
   .pin.custom-marker .pin-label { display: none; }
   .pin.done { z-index: 1; opacity: 0.35; }
   .pin.current {
-    z-index: 15;
+    z-index: 1500;
   }
   .pin.current .pin-dot {
     background: #39c76a;
@@ -218,8 +218,40 @@
     font-size: 12px;
     box-shadow: 0 0 12px rgba(57,199,106,0.45);
   }
-  .pin.current.dragging { z-index: 25; }
+  .pin.current.dragging { z-index: 2500; }
   .pin.done.current { opacity: 1; }
+  .pin.next {
+    z-index: 1400;
+  }
+  .pin.next .pin-dot {
+    background: #a970ff;
+    border-color: #fff;
+    border-width: 3px;
+    box-shadow:
+      0 0 0 4px rgba(169,112,255,0.4),
+      0 0 0 8px rgba(169,112,255,0.16),
+      0 0 14px rgba(169,112,255,0.85);
+  }
+  .pin.next .pin-number {
+    color: #fff;
+    font-size: 13px;
+  }
+  .pin.next .pin-label {
+    border-color: rgba(169,112,255,0.95);
+    background: rgba(28, 15, 46, 0.96);
+    color: #e6d6ff;
+    font-size: 12px;
+    box-shadow: 0 0 10px rgba(169,112,255,0.4);
+  }
+  .pin.done.next { opacity: 1; }
+  .route-connector {
+    position: absolute;
+    height: 0;
+    border-top: 2px dotted rgba(255,255,255,0.82);
+    transform-origin: 0 0;
+    pointer-events: none;
+    z-index: 5;
+  }
   @keyframes current-pin-pulse {
     0%, 100% {
       box-shadow:
@@ -342,7 +374,7 @@
     margin-bottom: 4px;
   }
   .route-focus-current .route-focus-label { color: #57dc82; }
-  .route-focus-next .route-focus-label { color: var(--text-dim); }
+  .route-focus-next .route-focus-label { color: #a970ff; }
   .route-focus-head {
     display: flex;
     align-items: center;
@@ -449,7 +481,7 @@
 
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-    display: none; align-items: center; justify-content: center; z-index: 100;
+    display: none; align-items: center; justify-content: center; z-index: 20000;
   }
   .modal-overlay.open { display: flex; }
   .modal-box {
