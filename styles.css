@@ -135,6 +135,7 @@
     z-index: 5;
   }
   .pin.dragging { cursor: grabbing; z-index: 10; }
+  .pin.drag-preview { opacity: 0.85; filter: drop-shadow(0 6px 14px rgba(0,0,0,0.6)); pointer-events: none; z-index: 9999; }
   .pin-dot {
     position: absolute;
     inset: 0;
@@ -428,3 +429,17 @@
   #empty-route-msg { color: var(--text-dim); font-size: 12px; padding-top: 5px; }
   #mapWrapper.placing { cursor: crosshair; }
   #mapWrapper.placing #mapImage { cursor: crosshair; }
+
+  /* Drag clone that follows the cursor when reordering route items */
+  .route-drag-clone {
+    position: fixed;
+    pointer-events: none;
+    z-index: 10000;
+    opacity: 0.95;
+    transform: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    background: rgba(30,30,30,0.98);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .route-item.dragging { opacity: 0.35; }

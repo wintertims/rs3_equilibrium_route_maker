@@ -13,8 +13,15 @@ const STORE_KEY = 'map-tagger-state';
   let nextId = 1;
   let dragTarget = null;
   let dragOffsetX = 0, dragOffsetY = 0;
+  let routeDragId = null;
+  let routeDragEl = null;
+  let routeDragClone = null;
+  let routeDragOffsetX = 0;
+  let routeDragOffsetY = 0;
   let isPanning = false;
   let panMoved = false;
+  let draggingTaskCode = null;
+  let dragPreviewPin = null;
   let panStartX = 0, panStartY = 0, panScrollLeft = 0, panScrollTop = 0;
   let placingTaskCode = null;
 
@@ -29,7 +36,9 @@ const STORE_KEY = 'map-tagger-state';
   const taskInfoNote = document.getElementById('taskInfoNote');
   const taskInfoClose = document.getElementById('taskInfoClose');
   let openInfoPlacementId = null;
+  let openInfoReadOnly = false;
   const placeholder = document.getElementById('placeholder');
+  
   const routeList = document.getElementById('routeList');
   const routeCount = document.getElementById('routeCount');
   const routeProgress = document.getElementById('routeProgress');
@@ -128,6 +137,7 @@ const STORE_KEY = 'map-tagger-state';
     taskInfoTier.textContent = task.tier;
     taskInfoPoints.textContent = taskPoints(task);
     taskInfoNote.value = placement.note || '';
+    taskInfoNote.readOnly = !!openInfoReadOnly;
     taskInfoPopup.classList.add('open');
     renderRouteList();
     setStatus('Viewing task details: ' + task.code + '.');
@@ -140,6 +150,7 @@ const STORE_KEY = 'map-tagger-state';
   taskInfoNote.addEventListener('input', () => {
     if (openInfoPlacementId === null) return;
     const placement = state.placements.find(p => p.id === openInfoPlacementId);
+    if (openInfoReadOnly) return;
     if (!placement) return;
     placement.note = taskInfoNote.value;
     saveState();
@@ -171,7 +182,7 @@ const STORE_KEY = 'map-tagger-state';
     renderRouteList();
     if (openInfoPlacementId !== null) {
       const openPlacement = state.placements.find(p => p.id === openInfoPlacementId);
-      if (openPlacement) showTaskInfo(openPlacement); else closeTaskInfo();
+      if (openPlacement) { openInfoReadOnly = false; showTaskInfo(openPlacement); } else closeTaskInfo();
     }
   }
 
@@ -211,6 +222,7 @@ const STORE_KEY = 'map-tagger-state';
       e.stopPropagation();
       document.querySelectorAll('.pin.selected').forEach(p => p.classList.remove('selected'));
       pin.classList.add('selected');
+      openInfoReadOnly = true;
       showTaskInfo(placement);
     };
     pin.addEventListener('click', openDetails);
@@ -250,6 +262,16 @@ const STORE_KEY = 'map-tagger-state';
     routeCount.textContent = state.placements.length;
     const completedRouteTasks = state.placements.filter(p => p.taskCode && doneSet.has(p.taskCode)).length;
     routeProgress.textContent = state.placements.length > 0 ? completedRouteTasks + ' / ' + state.placements.length + ' complete' : '';
+    // compute points summary
+    let totalPoints = 0, completedPoints = 0;
+    state.placements.forEach(p => {
+      const t = taskByCode(p.taskCode);
+      const pts = Number(taskPoints(t)) || 0;
+      totalPoints += pts;
+      if (p.taskCode && doneSet.has(p.taskCode)) completedPoints += pts;
+    });
+    routeProgress.textContent = state.placements.length > 0 ?
+      (completedRouteTasks + ' / ' + state.placements.length + ' complete • ' + completedPoints + ' / ' + totalPoints + ' pts') : '';
     const currentPlacement = state.placements.find(p => !doneSet.has(p.taskCode));
     const selectedPlacementId = openInfoPlacementId;
 
@@ -272,18 +294,50 @@ const STORE_KEY = 'map-tagger-state';
       li.appendChild(num);
 
       li.draggable = true;
+      li.addEventListener('click', (e) => {
+        // don't treat clicks on controls as selection
+        if (e.target.closest('button') || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        focusPlacedTask(placement);
+      });
       li.addEventListener('dragstart', (e) => {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', String(placement.id));
+        routeDragId = placement.id;
+        routeDragEl = li;
         li.classList.add('dragging');
+        // create a fixed-position clone to follow the mouse
+        try {
+          const rect = li.getBoundingClientRect();
+          routeDragOffsetX = e.clientX - rect.left;
+          routeDragOffsetY = e.clientY - rect.top;
+          routeDragClone = li.cloneNode(true);
+          routeDragClone.classList.add('route-drag-clone');
+          routeDragClone.style.width = rect.width + 'px';
+          routeDragClone.style.left = (e.clientX - routeDragOffsetX) + 'px';
+          routeDragClone.style.top = (e.clientY - routeDragOffsetY) + 'px';
+          document.body.appendChild(routeDragClone);
+          li.style.visibility = 'hidden';
+        } catch (err) { routeDragClone = null; }
       });
       li.addEventListener('dragend', () => {
         li.classList.remove('dragging');
+        routeDragId = null;
+        routeDragEl = null;
+        routeDragOffsetX = 0; routeDragOffsetY = 0;
+        if (routeDragClone) { routeDragClone.remove(); routeDragClone = null; }
+        li.style.visibility = '';
+        document.querySelectorAll('.route-item.drag-over').forEach(x => x.classList.remove('drag-over'));
       });
       li.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         li.classList.add('drag-over');
+        if (routeDragEl && routeDragEl !== li) {
+          const rect = li.getBoundingClientRect();
+          const halfway = rect.top + rect.height / 2;
+          if (e.clientY < halfway) routeList.insertBefore(routeDragEl, li);
+          else routeList.insertBefore(routeDragEl, li.nextSibling);
+        }
       });
       li.addEventListener('dragleave', () => {
         li.classList.remove('drag-over');
@@ -295,6 +349,10 @@ const STORE_KEY = 'map-tagger-state';
         if (!Number.isFinite(draggedId)) return;
         const targetIndex = Array.from(routeList.children).indexOf(li);
         reorderPlacement(draggedId, targetIndex);
+        routeDragId = null;
+        routeDragEl = null;
+        routeDragOffsetX = 0; routeDragOffsetY = 0;
+        if (routeDragClone) { routeDragClone.remove(); routeDragClone = null; }
       });
 
       const body = document.createElement('div');
@@ -321,9 +379,10 @@ const STORE_KEY = 'map-tagger-state';
       title.className = 'route-title' + (task && doneSet.has(task.code) ? ' done' : '');
       title.textContent = task ? '[' + task.code + '] ' + task.text : '(unknown task)';
       title.title = task ? task.text : '';
-      title.onclick = () => {
+      title.addEventListener('click', (e) => {
+        e.stopPropagation();
         if (task) done.click();
-      };
+      });
 
       const points = document.createElement('div');
       points.className = 'route-points';
@@ -332,16 +391,18 @@ const STORE_KEY = 'map-tagger-state';
       titleRow.append(done, title, points);
       body.appendChild(titleRow);
 
-      const note = document.createElement('textarea');
-      note.className = 'route-note';
-      note.placeholder = 'Notes…';
-      note.value = placement.note || '';
-      note.rows = 2;
-      note.addEventListener('change', () => {
-        placement.note = note.value.trim();
-        saveState();
-      });
-      body.appendChild(note);
+      if (placement.note && String(placement.note).trim() !== '') {
+        const note = document.createElement('textarea');
+        note.className = 'route-note';
+        note.placeholder = 'Notes…';
+        note.value = placement.note || '';
+        note.rows = 2;
+        note.addEventListener('change', () => {
+          placement.note = note.value.trim();
+          saveState();
+        });
+        body.appendChild(note);
+      }
       li.appendChild(body);
 
       const actions = document.createElement('div');
@@ -416,6 +477,7 @@ const STORE_KEY = 'map-tagger-state';
         pin.classList.add('selected', 'highlighted');
         setTimeout(() => pin.classList.remove('highlighted'), 1200);
       }
+      openInfoReadOnly = false;
       showTaskInfo(placement);
     });
   }
@@ -430,6 +492,16 @@ const STORE_KEY = 'map-tagger-state';
     mapWrapper.classList.add('placing');
     const task = taskByCode(taskCode);
     setStatus('Click the map to place: ' + (task ? task.text : taskCode));
+    // create a preview pin that follows the cursor while placing
+    try {
+      if (dragPreviewPin) dragPreviewPin.remove();
+      const preview = document.createElement('div');
+      preview.className = 'pin drag-preview';
+      const pdot = document.createElement('div'); pdot.className = 'pin-dot'; preview.appendChild(pdot);
+      const plabel = document.createElement('div'); plabel.className = 'pin-label'; plabel.textContent = task ? task.code : taskCode; preview.appendChild(plabel);
+      mapWrapper.appendChild(preview);
+      dragPreviewPin = preview;
+    } catch (err) { dragPreviewPin = null; }
   }
 
   const PAN_THRESHOLD = 6;
@@ -476,8 +548,10 @@ const STORE_KEY = 'map-tagger-state';
       note: ''
     });
     render();
+    renderTasks();
     saveState();
     setStatus('Task placed. Use the route list to reorder it or add notes.');
+    if (dragPreviewPin) { dragPreviewPin.remove(); dragPreviewPin = null; }
   });
 
   mapWrapper.addEventListener('dragenter', (e) => {
@@ -519,11 +593,41 @@ const STORE_KEY = 'map-tagger-state';
       note: ''
     });
     render();
+    renderTasks();
     saveState();
     setStatus('Task added to the route.');
+    if (dragPreviewPin) { dragPreviewPin.remove(); dragPreviewPin = null; }
+    draggingTaskCode = null;
+  });
+
+  // Move drag clone with the mouse so user sees the element following cursor
+  document.addEventListener('dragover', (e) => {
+    if (routeDragClone) {
+      routeDragClone.style.left = (e.clientX - routeDragOffsetX) + 'px';
+      routeDragClone.style.top = (e.clientY - routeDragOffsetY) + 'px';
+    }
+    // position the preview pin over the map while dragging from task list
+    if (dragPreviewPin) {
+      const rect = mapImage.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / state.zoom;
+      const y = (e.clientY - rect.top) / state.zoom;
+      dragPreviewPin.style.left = Math.round(x) + 'px';
+      dragPreviewPin.style.top = Math.round(y + (10 / state.zoom)) + 'px';
+      // keep preview scaled to current zoom
+      dragPreviewPin.style.transform = 'translate(-50%, -100%) scale(' + (1 / state.zoom) + ')';
+    }
   });
 
   document.addEventListener('mousemove', (e) => {
+    // update preview pin position while in placing mode
+    if (placingTaskCode && dragPreviewPin) {
+      const rect = mapImage.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / state.zoom;
+      const y = (e.clientY - rect.top) / state.zoom;
+      dragPreviewPin.style.left = Math.round(x) + 'px';
+      dragPreviewPin.style.top = Math.round(y + (10 / state.zoom)) + 'px';
+      dragPreviewPin.style.transform = 'translate(-50%, -100%) scale(' + (1 / state.zoom) + ')';
+    }
     if (isPanning) {
       const dx = e.clientX - panStartX;
       const dy = e.clientY - panStartY;
@@ -558,6 +662,9 @@ const STORE_KEY = 'map-tagger-state';
       dragOffsetY = 0;
       saveState();
     }
+    // ensure any dangling preview is removed when mouse released
+    if (dragPreviewPin) { dragPreviewPin.remove(); dragPreviewPin = null; }
+    draggingTaskCode = null;
   });
 
   function setZoom(value, clientX, clientY) {
@@ -834,16 +941,37 @@ const STORE_KEY = 'map-tagger-state';
         e.dataTransfer.effectAllowed = 'copy';
         e.dataTransfer.setData('text/plain', task.code);
         li.classList.add('dragging');
+        // prepare live preview pin for map-drop
+        draggingTaskCode = task.code;
+        try {
+          if (dragPreviewPin) dragPreviewPin.remove();
+          const preview = document.createElement('div');
+          preview.className = 'pin drag-preview';
+          preview.style.left = '0px'; preview.style.top = '0px';
+          preview.style.transform = 'translate(-50%, -100%) scale(' + (1 / state.zoom) + ')';
+          const pdot = document.createElement('div'); pdot.className = 'pin-dot'; preview.appendChild(pdot);
+          const plabel = document.createElement('div'); plabel.className = 'pin-label'; plabel.textContent = task.code; preview.appendChild(plabel);
+          mapWrapper.appendChild(preview);
+          dragPreviewPin = preview;
+          // hide the browser's default drag image
+          try {
+            const img = new Image();
+            img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';
+            e.dataTransfer.setDragImage(img, 0, 0);
+          } catch (err) {}
+        } catch (err) { dragPreviewPin = null; }
       });
       li.addEventListener('dragend', () => {
         li.classList.remove('dragging');
+        if (dragPreviewPin) { dragPreviewPin.remove(); dragPreviewPin = null; }
+        draggingTaskCode = null;
       });
 
       const placement = state.placements.find(p => p.taskCode === task.code);
       const placeBtn = document.createElement('button');
       placeBtn.className = 'place-task-btn';
       placeBtn.textContent = placement ? 'Focus' : 'Place';
-      placeBtn.title = placement ? 'Open this task in Map tags' : 'Place this task on the map';
+      placeBtn.title = placement ? 'Open this task in Route' : 'Place this task on the map';
       placeBtn.onclick = (e) => {
         e.stopPropagation();
         if (placement) focusPlacedTask(placement); else beginPlaceTask(task.code);
