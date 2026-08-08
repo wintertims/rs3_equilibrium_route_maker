@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Map Tagger</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="sidebar">
+  <h1>Map Tagger</h1>
+
+  <div class="tabs">
+    <button id="tabBtnTasks" class="active">Tasks</button>
+    <button id="tabBtnMap">Map tags</button>
+  </div>
+
+  <div id="tabPanelTasks" class="tab-panel active">
+    <div id="taskProgress">0 / 0 done</div>
+
+    <div class="section region-section">
+      <label>Show regions</label>
+      <div id="regionChecks"></div>
+      <div class="region-actions">
+        <button id="selectAllRegionsBtn">All</button>
+        <button id="clearRegionsBtn">None</button>
+      </div>
+    </div>
+
+    <div class="task-filter-row">
+      <select id="tierFilter">
+        <option value="__all__">All difficulties</option>
+        <option value="Easy">Easy</option>
+        <option value="Medium">Medium</option>
+      </select>
+    </div>
+    <ul id="taskList"></ul>
+
+    <div class="section" style="border-bottom:none;">
+      <button id="clearTasksBtn" class="danger" style="width:100%;">Clear all completions</button>
+    </div>
+  </div>
+
+  <div id="tabPanelMap" class="tab-panel">
+    <p class="hint">Select a task, click <b>Place</b>, then click its location on the map. Drag pins to reposition them. Use the route list to reorder tasks and add notes.</p>
+
+    <div class="section">
+      <label>Route (<span id="routeCount">0</span>) <span id="routeProgress" class="route-progress"></span></label>
+      <ul id="routeList"></ul>
+      <div id="empty-route-msg">No tasks placed yet.</div>
+    </div>
+
+    <div class="section">
+      <div class="row">
+        <button id="exportBtn">Export route</button>
+        <button id="importBtn">Import route</button>
+      </div>
+      <input type="file" id="importFile" accept="application/json" style="display:none;">
+    </div>
+
+    <div class="section" style="border-bottom:none;">
+      <button id="clearBtn" class="danger" style="width:100%;">Clear route</button>
+    </div>
+  </div>
+
+  <div id="status">Ready.</div>
+</div>
+
+<div class="modal-overlay" id="promptModal">
+  <div class="modal-box">
+    <p id="promptModalLabel">Tag text:</p>
+    <input type="text" id="promptModalInput">
+    <div class="modal-actions">
+      <button id="promptModalCancel">Cancel</button>
+      <button id="promptModalOk" class="primary">OK</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal-box">
+    <p id="confirmModalLabel">Are you sure?</p>
+    <div class="modal-actions">
+      <button id="confirmModalCancel">Cancel</button>
+      <button id="confirmModalOk" class="danger">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div id="mapArea">
+  <div id="placeholder">Loading map...</div>
+  <div id="mapWrapper" style="display:none;">
+    <img id="mapImage" draggable="false">
+  </div>
+  <div id="zoomControls" style="display:none;">
+    <button id="zoomOut">-</button>
+    <button id="zoomReset">1x</button>
+    <button id="zoomIn">+</button>
+  </div>
+  <div id="taskInfoPopup" role="dialog" aria-modal="false" aria-labelledby="taskInfoTitle">
+    <div class="task-info-header">
+      <div class="task-info-title" id="taskInfoTitle"></div>
+      <button class="task-info-close" id="taskInfoClose" title="Close">×</button>
+    </div>
+    <div class="task-info-body">
+      <div class="task-info-meta">
+        <div><small>Route #</small><strong id="taskInfoListNumber"></strong></div>
+        <div><small>Tier</small><strong id="taskInfoTier"></strong></div>
+        <div><small>Points</small><strong id="taskInfoPoints"></strong></div>
+      </div>
+      <label class="task-info-note-label" for="taskInfoNote">Notes</label>
+      <textarea id="taskInfoNote" placeholder="Add notes for this task…"></textarea>
+    </div>
+  </div>
+</div>
+
+  <script src="task-data.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
