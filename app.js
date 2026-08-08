@@ -458,7 +458,7 @@ const STORE_KEY = 'map-tagger-state';
     const line = document.createElement('div');
     line.className = 'route-connector';
     line.style.left = current.x + 'px';
-    line.style.top = current.y + 'px';
+    line.style.top = current.y - 10 + 'px';
     line.style.width = length + 'px';
     line.style.transform = 'rotate(' + angle + 'deg)';
     mapWrapper.insertBefore(line, mapImage.nextSibling);

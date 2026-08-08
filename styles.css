@@ -247,7 +247,7 @@
   .route-connector {
     position: absolute;
     height: 0;
-    border-top: 2px dashed rgba(255,255,255,0.35);
+    border-top: 2px dotted rgba(255,255,255,0.85);
     transform-origin: 0 0;
     pointer-events: none;
     z-index: 5;
