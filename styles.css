@@ -418,6 +418,16 @@
   }
   .task-filter-row input[type="search"] { flex: 1; }
   .task-filter-row select { width: 140px; }
+  .show-completed-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 10px;
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .show-completed-check input { margin: 0; }
   #taskProgress { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
   #taskList { list-style: none; margin: 0; padding: 0; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
   #taskList li { display: flex; align-items: flex-start; gap: 8px; min-height: 46px; padding: 10px 5px; border-bottom: 1px solid var(--border); font-size: 13.5px; line-height: 1.35; }
@@ -533,6 +543,8 @@
     border-bottom: 1px solid var(--border);
     border-left: 3px solid #222;
     padding-left: 4px;
+    margin-right: 3px;
+    /* border-radius: 5px; */
   }
   .route-num-col {
     flex-shrink: 0;

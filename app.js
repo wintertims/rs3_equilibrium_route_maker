@@ -8,7 +8,9 @@ const STORE_KEY = 'map-tagger-state';
     placements: [],
     zoom: 1,
     selectedRegions: null,
-    completedTaskCodes: []
+    completedTaskCodes: [],
+    showCompleted: true,
+    activeTab: 'tasks'
   };
   let nextId = 1;
   let dragTarget = null;
@@ -223,6 +225,8 @@ const STORE_KEY = 'map-tagger-state';
         if (!Array.isArray(state.completedTaskCodes)) state.completedTaskCodes = [];
         doneSet = new Set(state.completedTaskCodes);
         state.zoom = Math.max(0.25, Math.min(4, Number(state.zoom) || 1));
+        state.showCompleted = typeof state.showCompleted === 'boolean' ? state.showCompleted : true;
+        state.activeTab = state.activeTab === 'map' ? 'map' : 'tasks';
         nextId = state.placements.reduce((m, p) => Math.max(m, Number(p.id) || 0), 0) + 1;
         hadSaved = true;
       }
@@ -232,6 +236,8 @@ const STORE_KEY = 'map-tagger-state';
       state.placements = [];
       state.selectedRegions = null; // initialized after REGION_CODES is declared
     }
+    if (showCompletedCheck) showCompletedCheck.checked = state.showCompleted;
+    if (state.activeTab === 'map') tabBtnMap.click(); else tabBtnTasks.click();
     render();
     renderRegionFilters();
     renderTasks();
@@ -1176,10 +1182,14 @@ const STORE_KEY = 'map-tagger-state';
   tabBtnTasks.onclick = () => {
     tabBtnTasks.classList.add('active'); tabBtnMap.classList.remove('active');
     tabPanelTasks.classList.add('active'); tabPanelMap.classList.remove('active');
+    state.activeTab = 'tasks';
+    saveState();
   };
   tabBtnMap.onclick = () => {
     tabBtnMap.classList.add('active'); tabBtnTasks.classList.remove('active');
     tabPanelMap.classList.add('active'); tabPanelTasks.classList.remove('active');
+    state.activeTab = 'map';
+    saveState();
   };
 
   // ---------- Modals ----------
@@ -1240,6 +1250,7 @@ const STORE_KEY = 'map-tagger-state';
   const taskSearch = document.getElementById('taskSearch');
   const taskListEl = document.getElementById('taskList');
   const taskProgress = document.getElementById('taskProgress');
+  const showCompletedCheck = document.getElementById('showCompletedCheck');
 
   function renderRegionFilters() {
     if (!Array.isArray(state.selectedRegions)) {
@@ -1284,6 +1295,7 @@ const STORE_KEY = 'map-tagger-state';
       }
       const isDone = doneSet.has(task.code);
       if (isDone) doneCount++;
+      if (isDone && !state.showCompleted) return;
       totalCount++;
 
       const li = document.createElement('li');
@@ -1392,6 +1404,11 @@ const STORE_KEY = 'map-tagger-state';
 
   tierFilter.onchange = renderTasks;
   taskSearch.addEventListener('input', renderTasks);
+  showCompletedCheck.onchange = () => {
+    state.showCompleted = showCompletedCheck.checked;
+    renderTasks();
+    saveState();
+  };
 
 
   document.getElementById('selectAllRegionsBtn').onclick = () => {
