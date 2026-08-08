@@ -13,11 +13,6 @@ const STORE_KEY = 'map-tagger-state';
   let nextId = 1;
   let dragTarget = null;
   let dragOffsetX = 0, dragOffsetY = 0;
-  let routeDragId = null;
-  let routeDragEl = null;
-  let routeDragClone = null;
-  let routeDragOffsetX = 0;
-  let routeDragOffsetY = 0;
   let isPanning = false;
   let panMoved = false;
   let draggingTaskCode = null;
@@ -40,6 +35,7 @@ const STORE_KEY = 'map-tagger-state';
   const placeholder = document.getElementById('placeholder');
   
   const routeList = document.getElementById('routeList');
+  let routeSorter = null;
   const routeCount = document.getElementById('routeCount');
   const routeProgress = document.getElementById('routeProgress');
   const emptyRouteMsg = document.getElementById('empty-route-msg');
@@ -47,6 +43,19 @@ const STORE_KEY = 'map-tagger-state';
   const zoomControls = document.getElementById('zoomControls');
 
   function setStatus(msg) { statusEl.textContent = msg; }
+
+  function autoResizeTextarea(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    // compute extra buffer based on borders to avoid clipped content
+    const cs = window.getComputedStyle(el);
+    const borderTop = parseInt(cs.borderTopWidth || '0', 10) || 0;
+    const borderBottom = parseInt(cs.borderBottomWidth || '0', 10) || 0;
+    const paddingTop = parseInt(cs.paddingTop || '0', 10) || 0;
+    const paddingBottom = parseInt(cs.paddingBottom || '0', 10) || 0;
+    const extra = Math.max(8, borderTop + borderBottom + Math.round((paddingTop + paddingBottom) / 4));
+    el.style.height = (el.scrollHeight + extra) + 'px';
+  }
 
   async function loadState() {
     let hadSaved = false;
@@ -138,6 +147,7 @@ const STORE_KEY = 'map-tagger-state';
     taskInfoPoints.textContent = taskPoints(task);
     taskInfoNote.value = placement.note || '';
     taskInfoNote.readOnly = !!openInfoReadOnly;
+    requestAnimationFrame(() => autoResizeTextarea(taskInfoNote));
     taskInfoPopup.classList.add('open');
     renderRouteList();
     setStatus('Viewing task details: ' + task.code + '.');
@@ -153,6 +163,30 @@ const STORE_KEY = 'map-tagger-state';
     if (openInfoReadOnly) return;
     if (!placement) return;
     placement.note = taskInfoNote.value;
+    const noteEl = document.querySelector('.route-note[data-placement-id="' + placement.id + '"]');
+    if (placement.note.trim()) {
+      if (noteEl) {
+        noteEl.textContent = placement.note;
+      } else {
+        const row = document.querySelector('li[data-placement-id="' + placement.id + '"] .route-body');
+        if (row) {
+          const note = document.createElement('div');
+          note.className = 'route-note';
+          note.dataset.placementId = placement.id;
+          note.textContent = placement.note;
+          note.title = 'Click to open editor';
+          note.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openInfoReadOnly = false;
+            showTaskInfo(placement);
+          });
+          row.appendChild(note);
+        }
+      }
+    } else if (noteEl) {
+      noteEl.remove();
+    }
+    requestAnimationFrame(() => autoResizeTextarea(taskInfoNote));
     saveState();
   });
 
@@ -222,7 +256,8 @@ const STORE_KEY = 'map-tagger-state';
       e.stopPropagation();
       document.querySelectorAll('.pin.selected').forEach(p => p.classList.remove('selected'));
       pin.classList.add('selected');
-      openInfoReadOnly = true;
+      // Always allow editing when the top-left info pane is opened via marker click.
+      openInfoReadOnly = false;
       showTaskInfo(placement);
     };
     pin.addEventListener('click', openDetails);
@@ -247,11 +282,9 @@ const STORE_KEY = 'map-tagger-state';
 
     pin.addEventListener('dblclick', (e) => {
       e.stopPropagation();
-      showPromptModal('Note for task:', placement.note || '', (newNote) => {
-        placement.note = newNote.trim();
-        render();
-        saveState();
-      });
+      // Open the task info popup in editable mode for quick note editing
+      openInfoReadOnly = false;
+      showTaskInfo(placement);
     });
 
     mapWrapper.appendChild(pin);
@@ -293,70 +326,15 @@ const STORE_KEY = 'map-tagger-state';
       num.textContent = index + 1;
       li.appendChild(num);
 
-      li.draggable = true;
       li.addEventListener('click', (e) => {
         // don't treat clicks on controls as selection
         if (e.target.closest('button') || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         focusPlacedTask(placement);
       });
-      li.addEventListener('dragstart', (e) => {
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', String(placement.id));
-        routeDragId = placement.id;
-        routeDragEl = li;
-        li.classList.add('dragging');
-        // create a fixed-position clone to follow the mouse
-        try {
-          const rect = li.getBoundingClientRect();
-          routeDragOffsetX = e.clientX - rect.left;
-          routeDragOffsetY = e.clientY - rect.top;
-          routeDragClone = li.cloneNode(true);
-          routeDragClone.classList.add('route-drag-clone');
-          routeDragClone.style.width = rect.width + 'px';
-          routeDragClone.style.left = (e.clientX - routeDragOffsetX) + 'px';
-          routeDragClone.style.top = (e.clientY - routeDragOffsetY) + 'px';
-          document.body.appendChild(routeDragClone);
-          li.style.visibility = 'hidden';
-        } catch (err) { routeDragClone = null; }
-      });
-      li.addEventListener('dragend', () => {
-        li.classList.remove('dragging');
-        routeDragId = null;
-        routeDragEl = null;
-        routeDragOffsetX = 0; routeDragOffsetY = 0;
-        if (routeDragClone) { routeDragClone.remove(); routeDragClone = null; }
-        li.style.visibility = '';
-        document.querySelectorAll('.route-item.drag-over').forEach(x => x.classList.remove('drag-over'));
-      });
-      li.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        li.classList.add('drag-over');
-        if (routeDragEl && routeDragEl !== li) {
-          const rect = li.getBoundingClientRect();
-          const halfway = rect.top + rect.height / 2;
-          if (e.clientY < halfway) routeList.insertBefore(routeDragEl, li);
-          else routeList.insertBefore(routeDragEl, li.nextSibling);
-        }
-      });
-      li.addEventListener('dragleave', () => {
-        li.classList.remove('drag-over');
-      });
-      li.addEventListener('drop', (e) => {
-        e.preventDefault();
-        li.classList.remove('drag-over');
-        const draggedId = Number(e.dataTransfer.getData('text/plain'));
-        if (!Number.isFinite(draggedId)) return;
-        const targetIndex = Array.from(routeList.children).indexOf(li);
-        reorderPlacement(draggedId, targetIndex);
-        routeDragId = null;
-        routeDragEl = null;
-        routeDragOffsetX = 0; routeDragOffsetY = 0;
-        if (routeDragClone) { routeDragClone.remove(); routeDragClone = null; }
-      });
 
       const body = document.createElement('div');
       body.className = 'route-body';
+      li.dataset.placementId = placement.id;
 
       const titleRow = document.createElement('div');
       titleRow.className = 'route-title-row';
@@ -392,14 +370,15 @@ const STORE_KEY = 'map-tagger-state';
       body.appendChild(titleRow);
 
       if (placement.note && String(placement.note).trim() !== '') {
-        const note = document.createElement('textarea');
+        const note = document.createElement('div');
         note.className = 'route-note';
-        note.placeholder = 'Notes…';
-        note.value = placement.note || '';
-        note.rows = 2;
-        note.addEventListener('change', () => {
-          placement.note = note.value.trim();
-          saveState();
+        note.dataset.placementId = placement.id;
+        note.textContent = placement.note || '';
+        note.title = 'Click to open editor';
+        note.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openInfoReadOnly = false;
+          showTaskInfo(placement);
         });
         body.appendChild(note);
       }
@@ -431,6 +410,7 @@ const STORE_KEY = 'map-tagger-state';
       remove.title = 'Remove from route';
       remove.onclick = () => {
         state.placements = state.placements.filter(p => p.id !== placement.id);
+        renderTasks();
         render();
         saveState();
       };
@@ -438,6 +418,23 @@ const STORE_KEY = 'map-tagger-state';
       actions.append(up, down, center, remove);
       li.appendChild(actions);
       routeList.appendChild(li);
+    });
+    // route-list notes are simple spans; no resizing required here
+    initRouteListSorting();
+  }
+
+  function initRouteListSorting() {
+    if (!window.Sortable) return;
+    if (routeSorter) routeSorter.destroy();
+    routeSorter = Sortable.create(routeList, {
+      animation: 150,
+      ghostClass: 'route-item-ghost',
+      onEnd: (evt) => {
+        if (evt.oldIndex === evt.newIndex || evt.oldIndex == null || evt.newIndex == null) return;
+        const dragged = state.placements[evt.oldIndex];
+        if (!dragged) return;
+        reorderPlacement(dragged.id, evt.newIndex);
+      }
     });
   }
 
@@ -452,13 +449,14 @@ const STORE_KEY = 'map-tagger-state';
 
   function reorderPlacement(draggedId, targetIndex) {
     const fromIndex = state.placements.findIndex(p => p.id === draggedId);
-    if (fromIndex === -1 || targetIndex < 0 || targetIndex >= state.placements.length) return;
-    if (fromIndex === targetIndex) return;
+    if (fromIndex === -1 || targetIndex < 0 || targetIndex > state.placements.length) return false;
+    if (fromIndex === targetIndex) return false;
     const [moved] = state.placements.splice(fromIndex, 1);
-    const insertIndex = targetIndex;
+    const insertIndex = targetIndex > state.placements.length ? state.placements.length : targetIndex;
     state.placements.splice(insertIndex, 0, moved);
     render();
     saveState();
+    return true;
   }
 
   function centerPlacement(placement) {
@@ -477,8 +475,17 @@ const STORE_KEY = 'map-tagger-state';
         pin.classList.add('selected', 'highlighted');
         setTimeout(() => pin.classList.remove('highlighted'), 1200);
       }
-      openInfoReadOnly = false;
-      showTaskInfo(placement);
+      // If this placement is already open in the info pane, avoid
+      // calling showTaskInfo again — that triggers a full route-list
+      // re-render and textarea auto-resize which causes a visual jitter.
+      if (openInfoPlacementId === placement.id) {
+        // ensure info pane is visible but don't re-render route list
+        taskInfoPopup.classList.add('open');
+        openInfoReadOnly = false;
+      } else {
+        openInfoReadOnly = false;
+        showTaskInfo(placement);
+      }
     });
   }
 
@@ -602,10 +609,6 @@ const STORE_KEY = 'map-tagger-state';
 
   // Move drag clone with the mouse so user sees the element following cursor
   document.addEventListener('dragover', (e) => {
-    if (routeDragClone) {
-      routeDragClone.style.left = (e.clientX - routeDragOffsetX) + 'px';
-      routeDragClone.style.top = (e.clientY - routeDragOffsetY) + 'px';
-    }
     // position the preview pin over the map while dragging from task list
     if (dragPreviewPin) {
       const rect = mapImage.getBoundingClientRect();
@@ -1001,6 +1004,7 @@ const STORE_KEY = 'map-tagger-state';
 
   tierFilter.onchange = renderTasks;
   taskSearch.addEventListener('input', renderTasks);
+
 
   document.getElementById('selectAllRegionsBtn').onclick = () => {
     state.selectedRegions = REGION_CODES.map(([code]) => code);

@@ -195,9 +195,10 @@
   #taskInfoPopup {
     position: fixed;
     top: 16px;
-    right: 16px;
+    /* position to the left of the map, after the fixed sidebar (300px wide + 16px gap) */
+    left: calc(300px + 16px);
     width: 330px;
-    max-width: calc(100vw - 32px);
+    max-width: calc(100vw - 332px);
     background: rgba(30,30,30,0.97);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -219,14 +220,27 @@
   .task-info-close { padding: 2px 7px; font-size: 16px; line-height: 1.1; }
   .task-info-body { padding: 10px 12px 12px; }
   .task-info-meta {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
     margin-bottom: 10px;
   }
-  .task-info-meta div { background: #242424; border: 1px solid #333; border-radius: 5px; padding: 7px 8px; }
-  .task-info-meta small { display:block; color:var(--text-dim); font-size:10px; margin-bottom:2px; }
-  .task-info-meta strong { font-size:12px; }
+  .task-info-meta div {
+    background: transparent;
+    border: none;
+    padding: 0;
+    min-width: 0;
+  }
+  .task-info-meta small {
+    display:block;
+    color:var(--text-dim);
+    font-size:10px;
+    margin-bottom:2px;
+  }
+  .task-info-meta strong {
+    font-size:12px;
+    display:block;
+  }
   #taskInfoNote {
     width: 100%; min-height: 70px; resize: vertical;
     background: #1a1a1a; border: 1px solid var(--border); color: var(--text);
@@ -390,15 +404,19 @@
   }
   .route-note {
     width: 100%;
-    min-height: 38px;
-    resize: vertical;
+    min-height: 0;
+    resize: none;
+    overflow: hidden;
+    white-space: pre-wrap;
+    word-break: break-word;
     background: #1a1a1a;
     border: 1px solid var(--border);
     color: var(--text);
-    padding: 5px;
+    padding: 8px 6px;
     border-radius: 5px;
     font: inherit;
     font-size: 11px;
+    line-height: 1.35;
   }
   .route-actions {
     display: flex;
@@ -442,4 +460,13 @@
     border: 1px solid var(--border);
     border-radius: 6px;
   }
-  .route-item.dragging { opacity: 0.35; }
+  .route-item-ghost {
+    opacity: 0.4;
+  }
+  .route-item.dragging { opacity: 0.15; }
+  .route-item.route-placeholder {
+    border: 2px dashed rgba(77,157,224,0.75);
+    background: rgba(77,157,224,0.08);
+    min-height: 40px;
+    margin: 4px 0;
+  }
