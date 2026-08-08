@@ -23,6 +23,7 @@ const STORE_KEY = 'map-tagger-state';
   let panStartX = 0, panStartY = 0, panScrollLeft = 0, panScrollTop = 0;
   let placingTaskCode = null;
   let placingCustomMarker = false;
+  let customMarkerInsertIndex = null;
 
   const mapArea = document.getElementById('mapArea');
   const mapWrapper = document.getElementById('mapWrapper');
@@ -459,7 +460,7 @@ const STORE_KEY = 'map-tagger-state';
     const line = document.createElement('div');
     line.className = 'route-connector';
     line.style.left = current.x + 'px';
-    line.style.top = current.y - 10 + 'px';
+    line.style.top = current.y + 'px';
     line.style.width = length + 'px';
     line.style.transform = 'rotate(' + angle + 'deg)';
     mapWrapper.insertBefore(line, mapImage.nextSibling);
@@ -745,7 +746,16 @@ const STORE_KEY = 'map-tagger-state';
         saveState();
       };
 
-      actions.append(remove);
+      const addBelow = document.createElement('button');
+      addBelow.textContent = '+';
+      addBelow.title = 'Add custom marker beneath this task';
+      addBelow.onclick = (e) => {
+        e.stopPropagation();
+        cancelPlacementMode();
+        beginCustomMarkerPlacement(index + 1);
+      };
+
+      actions.append(addBelow, remove);
       // actions.append(up, down, center, remove);
       li.appendChild(actions);
       routeList.appendChild(li);
@@ -759,8 +769,13 @@ const STORE_KEY = 'map-tagger-state';
     if (!window.Sortable) return;
     if (routeSorter) routeSorter.destroy();
     routeSorter = Sortable.create(routeList, {
-      animation: 150,
+      animation: 80,
       ghostClass: 'route-item-ghost',
+      scroll: true,
+      forceAutoScrollFallback: true,
+      scrollSensitivity: 120,
+      scrollSpeed: 40,
+      bubbleScroll: true,
       onEnd: (evt) => {
         if (evt.oldIndex === evt.newIndex || evt.oldIndex == null || evt.newIndex == null) return;
         const dragged = state.placements[evt.oldIndex];
@@ -846,9 +861,10 @@ const STORE_KEY = 'map-tagger-state';
     } catch (err) { dragPreviewPin = null; }
   }
 
-  function beginCustomMarkerPlacement() {
+  function beginCustomMarkerPlacement(insertIndex) {
     placingTaskCode = null;
     placingCustomMarker = true;
+    customMarkerInsertIndex = typeof insertIndex === 'number' ? insertIndex : null;
     tabBtnMap.click();
     mapWrapper.classList.add('placing');
     setStatus('Click the map to place a custom marker. Press Escape to cancel.');
@@ -866,6 +882,7 @@ const STORE_KEY = 'map-tagger-state';
   function cancelPlacementMode() {
     placingTaskCode = null;
     placingCustomMarker = false;
+    customMarkerInsertIndex = null;
     mapWrapper.classList.remove('placing');
     if (dragPreviewPin) { dragPreviewPin.remove(); dragPreviewPin = null; }
     hideMapContextMenu();
@@ -955,14 +972,21 @@ const STORE_KEY = 'map-tagger-state';
     if (placingCustomMarker) {
       placingCustomMarker = false;
       mapWrapper.classList.remove('placing');
-      state.placements.push({
+      const marker = {
         id: nextId++,
         taskCode: null,
         customMarker: true,
         x: Math.round(x),
         y: Math.round(y),
         note: ''
-      });
+      };
+      if (customMarkerInsertIndex !== null) {
+        const insertAt = Math.min(customMarkerInsertIndex, state.placements.length);
+        state.placements.splice(insertAt, 0, marker);
+        customMarkerInsertIndex = null;
+      } else {
+        state.placements.push(marker);
+      }
       render();
       renderTasks();
       saveState();
