@@ -18,8 +18,8 @@
     overflow: hidden;
   }
   #sidebar {
-    width: 300px;
-    min-width: 300px;
+    width: 340px;
+    min-width: 340px;
     background: var(--panel);
     border-right: 1px solid var(--border);
     display: flex;
@@ -270,9 +270,9 @@
   }
   #taskInfoPopup {
     position: fixed;
-    top: 16px;
+    top: 4px;
     /* position to the left of the map, after the fixed sidebar (300px wide + 16px gap) */
-    left: calc(300px + 16px);
+    left: calc(340px + 6px);
     width: 350px;
     max-width: calc(100vw - 332px);
     background: rgba(30,30,30,0.97);
