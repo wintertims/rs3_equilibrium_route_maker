@@ -46,7 +46,10 @@
     <p class="hint">Select a task, click <b>Place</b>, then click its location on the map. Drag pins to reposition them. Use the route list to reorder tasks and add notes.</p>
 
     <div class="section">
-      <label>Route (<span id="routeCount">0</span>) <span id="routeProgress" class="route-progress"></span></label>
+      <div class="route-header">
+        <label>Route (<span id="routeCount">0</span>) <span id="routeProgress" class="route-progress"></span></label>
+        <button id="addCustomMarkerBtn" class="route-add-btn" title="Add custom marker">+</button>
+      </div>
       <ul id="routeList"></ul>
       <div id="empty-route-msg">No tasks placed yet.</div>
     </div>
@@ -98,6 +101,34 @@
     <button id="zoomReset">1x</button>
     <button id="zoomIn">+</button>
   </div>
+  <div id="routeFocusPanel" style="display:none;" aria-live="polite">
+    <div class="route-focus-item route-focus-current" id="routeFocusCurrent" hidden>
+      <div class="route-focus-label">Current</div>
+      <div class="route-focus-head">
+        <div class="route-focus-code" id="routeFocusCurrentCode"></div>
+        <div class="route-focus-meta">
+          <span class="route-focus-tier task-tier" id="routeFocusCurrentTier"></span>
+          <span class="route-focus-points" id="routeFocusCurrentPoints"></span>
+          
+        </div>
+      </div>
+      <div class="route-focus-text" id="routeFocusCurrentText"></div>
+      <button id="routeFocusCurrentDoneBtn" class="route-focus-done-btn">Mark as done</button>
+    </div>
+    <div class="route-focus-item route-focus-next" id="routeFocusNext" hidden>
+      <div class="route-focus-label">Next</div>
+      <div class="route-focus-head">
+        <div class="route-focus-code" id="routeFocusNextCode"></div>
+        <div class="route-focus-meta">
+          <span class="route-focus-tier task-tier" id="routeFocusNextTier"></span>
+          <span class="route-focus-points" id="routeFocusNextPoints"></span>
+        </div>
+      </div>
+      <div class="route-focus-text" id="routeFocusNextText"></div>
+    </div>
+    <div id="routeFocusEmpty" class="route-focus-empty">Route complete.</div>
+  </div>
+  <div id="mapContextMenu" class="map-context-menu" hidden></div>
   <div id="taskInfoPopup" role="dialog" aria-modal="false" aria-labelledby="taskInfoTitle">
     <div class="task-info-header">
       <div class="task-info-title" id="taskInfoTitle"></div>
@@ -109,6 +140,10 @@
         <div><small>Region</small><strong id="taskInfoRegion"></strong></div>
         <div><small>Tier</small><strong id="taskInfoTier"></strong></div>
         <div><small>Points</small><strong id="taskInfoPoints"></strong></div>
+        <div class="task-info-action-cell">
+          <button id="taskInfoDoneBtn" class="primary">Mark as done</button>
+          <button id="taskInfoRemoveBtn" class="danger">Remove from route</button>
+        </div>
       </div>
       <label class="task-info-note-label" for="taskInfoNote">Notes</label>
       <textarea id="taskInfoNote" placeholder="Add notes for this task…"></textarea>

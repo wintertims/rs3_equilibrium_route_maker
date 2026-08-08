@@ -19,6 +19,7 @@ const STORE_KEY = 'map-tagger-state';
   let dragPreviewPin = null;
   let panStartX = 0, panStartY = 0, panScrollLeft = 0, panScrollTop = 0;
   let placingTaskCode = null;
+  let placingCustomMarker = false;
 
   const mapArea = document.getElementById('mapArea');
   const mapWrapper = document.getElementById('mapWrapper');
@@ -30,6 +31,10 @@ const STORE_KEY = 'map-tagger-state';
   const taskInfoPoints = document.getElementById('taskInfoPoints');
   const taskInfoNote = document.getElementById('taskInfoNote');
   const taskInfoClose = document.getElementById('taskInfoClose');
+  const taskInfoDoneBtn = document.getElementById('taskInfoDoneBtn');
+  const taskInfoRemoveBtn = document.getElementById('taskInfoRemoveBtn');
+  const addCustomMarkerBtn = document.getElementById('addCustomMarkerBtn');
+  const mapContextMenu = document.getElementById('mapContextMenu');
   let openInfoPlacementId = null;
   let openInfoReadOnly = false;
   const placeholder = document.getElementById('placeholder');
@@ -41,8 +46,146 @@ const STORE_KEY = 'map-tagger-state';
   const emptyRouteMsg = document.getElementById('empty-route-msg');
   const statusEl = document.getElementById('status');
   const zoomControls = document.getElementById('zoomControls');
+  const routeFocusPanel = document.getElementById('routeFocusPanel');
+  const routeFocusCurrent = document.getElementById('routeFocusCurrent');
+  const routeFocusNext = document.getElementById('routeFocusNext');
+  const routeFocusEmpty = document.getElementById('routeFocusEmpty');
+  const routeFocusCurrentCode = document.getElementById('routeFocusCurrentCode');
+  const routeFocusCurrentTier = document.getElementById('routeFocusCurrentTier');
+  const routeFocusCurrentPoints = document.getElementById('routeFocusCurrentPoints');
+  const routeFocusCurrentText = document.getElementById('routeFocusCurrentText');
+  const routeFocusCurrentDoneBtn = document.getElementById('routeFocusCurrentDoneBtn');
+  const routeFocusNextCode = document.getElementById('routeFocusNextCode');
+  const routeFocusNextTier = document.getElementById('routeFocusNextTier');
+  const routeFocusNextPoints = document.getElementById('routeFocusNextPoints');
+  const routeFocusNextText = document.getElementById('routeFocusNextText');
 
   function setStatus(msg) { statusEl.textContent = msg; }
+
+  function getActiveRoutePlacements() {
+    return state.placements.filter(p => {
+      if (p.customMarker) {
+        return !doneSet.has('custom-' + p.id);
+      }
+      return p.taskCode && !doneSet.has(p.taskCode);
+    });
+  }
+
+  function getCurrentPlacement() {
+    return getActiveRoutePlacements()[0] || null;
+  }
+
+  function getNextPlacement() {
+    return getActiveRoutePlacements()[1] || null;
+  }
+
+  function setRouteFocusMeta(tierEl, pointsEl, task) {
+    if (!tierEl || !pointsEl) return;
+    if (!task) {
+      tierEl.textContent = '';
+      tierEl.className = 'route-focus-tier task-tier';
+      pointsEl.textContent = '';
+      return;
+    }
+    tierEl.textContent = task.tier || '';
+    tierEl.className = 'route-focus-tier task-tier' + (task.tier ? ' ' + task.tier.toLowerCase() : '');
+    const pts = taskPoints(task);
+    pointsEl.textContent = pts === '—' ? '' : pts + ' pts';
+  }
+
+  function formatFocusTaskLabel(placement) {
+    if (!placement) return { code: '—', text: '', task: null };
+    const task = taskByCode(placement.taskCode);
+    const routeIndex = state.placements.findIndex(p => p.id === placement.id);
+    const order = routeIndex >= 0 ? '#' + (routeIndex + 1) + ' · ' : '';
+    if (!task) return { code: order + (placement.taskCode || 'Task'), text: '', task: null };
+    return { code: order + task.code, text: task.text, task };
+  }
+
+  function updateRouteFocusPanel() {
+    if (!routeFocusPanel) return;
+    const current = getCurrentPlacement();
+    const next = getNextPlacement();
+    const hasRoute = state.placements.some(p => p.customMarker || p.taskCode);
+
+    if (!hasRoute) {
+      routeFocusPanel.style.display = 'none';
+      return;
+    }
+
+    routeFocusPanel.style.display = 'block';
+
+    if (current) {
+      const currentLabel = formatFocusTaskLabel(current);
+      routeFocusCurrent.hidden = false;
+      routeFocusCurrentCode.textContent = currentLabel.code;
+      setRouteFocusMeta(routeFocusCurrentTier, routeFocusCurrentPoints, currentLabel.task);
+      routeFocusCurrentText.textContent = currentLabel.text;
+      routeFocusEmpty.hidden = true;
+      
+      // Setup done button for current task
+      if (routeFocusCurrentDoneBtn) {
+        let isDone = false;
+        if (current.customMarker) {
+          isDone = doneSet.has('custom-' + current.id);
+        } else if (currentLabel.task) {
+          isDone = doneSet.has(currentLabel.task.code);
+        }
+        routeFocusCurrentDoneBtn.textContent = isDone ? 'Mark as not done' : 'Mark as done';
+        routeFocusCurrentDoneBtn.style.display = 'block';
+      }
+    } else {
+      routeFocusCurrent.hidden = true;
+      routeFocusEmpty.hidden = false;
+    }
+
+    if (next) {
+      const nextLabel = formatFocusTaskLabel(next);
+      routeFocusNext.hidden = false;
+      routeFocusNextCode.textContent = nextLabel.code;
+      setRouteFocusMeta(routeFocusNextTier, routeFocusNextPoints, nextLabel.task);
+      routeFocusNextText.textContent = nextLabel.text;
+    } else {
+      routeFocusNext.hidden = true;
+    }
+  }
+
+  routeFocusCurrent.onclick = () => {
+    const current = getCurrentPlacement();
+    if (current) focusPlacedTask(current);
+  };
+  routeFocusNext.onclick = () => {
+    const next = getNextPlacement();
+    if (next) focusPlacedTask(next);
+  };
+  
+  routeFocusCurrentDoneBtn.onclick = (e) => {
+    e.stopPropagation();
+    const current = getCurrentPlacement();
+    if (current) {
+      if (current.taskCode) {
+        const task = taskByCode(current.taskCode);
+        if (task) {
+          if (doneSet.has(task.code)) {
+            doneSet.delete(task.code);
+          } else {
+            doneSet.add(task.code);
+          }
+        }
+      } else if (current.customMarker) {
+        if (doneSet.has('custom-' + current.id)) {
+          doneSet.delete('custom-' + current.id);
+        } else {
+          doneSet.add('custom-' + current.id);
+        }
+      }
+      saveDoneCookie();
+      renderTasks();
+      renderRouteList();
+      renderPinsOnly();
+      updateRouteFocusPanel();
+    }
+  };
 
   function autoResizeTextarea(el) {
     if (!el) return;
@@ -137,22 +280,90 @@ const STORE_KEY = 'map-tagger-state';
   }
 
   function showTaskInfo(placement) {
-    const task = taskByCode(placement.taskCode);
-    if (!task) return;
+    if (!placement) return;
     openInfoPlacementId = placement.id;
-    taskInfoTitle.textContent = '[' + task.code + '] ' + task.text;
+    const task = taskByCode(placement.taskCode);
+    const isCustom = !!placement.customMarker;
     const routeIndex = state.placements.findIndex(p => p.id === placement.id);
     taskInfoListNumber.textContent = routeIndex >= 0 ? String(routeIndex + 1) : '—';
-    taskInfoRegion.textContent = task.region || 'Unknown';
-    taskInfoTier.textContent = task.tier;
-    taskInfoTier.className = 'task-tier ' + (task.tier ? task.tier.toLowerCase() : '');
-    taskInfoPoints.textContent = taskPoints(task);
+
+    if (placement.customMarker) {
+      taskInfoTitle.textContent = 'Custom marker';
+      taskInfoRegion.textContent = '—';
+      taskInfoTier.textContent = 'Custom';
+      taskInfoTier.className = 'task-tier custom';
+      taskInfoPoints.textContent = '—';
+    } else if (task) {
+      taskInfoTitle.textContent = '[' + task.code + '] ' + task.text;
+      taskInfoRegion.textContent = task.region || 'Unknown';
+      taskInfoTier.textContent = task.tier;
+      taskInfoTier.className = 'task-tier ' + (task.tier ? task.tier.toLowerCase() : '');
+      taskInfoPoints.textContent = taskPoints(task);
+    } else {
+      taskInfoTitle.textContent = 'Marker';
+      taskInfoRegion.textContent = '—';
+      taskInfoTier.textContent = 'Custom';
+      taskInfoTier.className = 'task-tier custom';
+      taskInfoPoints.textContent = '—';
+    }
+
     taskInfoNote.value = placement.note || '';
     taskInfoNote.readOnly = !!openInfoReadOnly;
+    
+    // Setup done button
+    if (taskInfoDoneBtn) {
+      let isDone = false;
+      if (isCustom) {
+        isDone = doneSet.has('custom-' + placement.id);
+      } else if (task) {
+        isDone = doneSet.has(task.code);
+      }
+      taskInfoDoneBtn.textContent = isDone ? 'Mark as not done' : 'Mark as done';
+      taskInfoDoneBtn.style.display = 'block';
+      taskInfoDoneBtn.onclick = () => {
+        if (isCustom) {
+          if (doneSet.has('custom-' + placement.id)) {
+            doneSet.delete('custom-' + placement.id);
+          } else {
+            doneSet.add('custom-' + placement.id);
+          }
+        } else if (task) {
+          if (doneSet.has(task.code)) {
+            doneSet.delete(task.code);
+          } else {
+            doneSet.add(task.code);
+          }
+        }
+        saveDoneCookie();
+        renderTasks();
+        renderRouteList();
+        updateRouteFocusPanel();
+        renderPinsOnly();
+        // Update button text
+        let newIsDone = false;
+        if (isCustom) {
+          newIsDone = doneSet.has('custom-' + placement.id);
+        } else if (task) {
+          newIsDone = doneSet.has(task.code);
+        }
+        taskInfoDoneBtn.textContent = newIsDone ? 'Mark as not done' : 'Mark as done';
+      };
+    }
+    
+    const removeBtn = document.getElementById('taskInfoRemoveBtn');
+    if (removeBtn) {
+      removeBtn.onclick = () => {
+        state.placements = state.placements.filter(p => p.id !== placement.id);
+        renderTasks();
+        render();
+        saveState();
+        closeTaskInfo();
+      };
+    }
     requestAnimationFrame(() => autoResizeTextarea(taskInfoNote));
     taskInfoPopup.classList.add('open');
     renderRouteList();
-    setStatus('Viewing task details: ' + task.code + '.');
+    setStatus('Viewing task details: ' + (task ? task.code : 'marker') + '.');
   }
 
   taskInfoClose.onclick = (e) => {
@@ -194,7 +405,17 @@ const STORE_KEY = 'map-tagger-state';
 
   function renderPinsOnly() {
     document.querySelectorAll('.pin').forEach(p => p.remove());
-    state.placements.forEach((placement, index) => renderPin(placement, index));
+    const currentId = getCurrentPlacement()?.id ?? null;
+    const ordered = currentId === null
+      ? state.placements
+      : [
+          ...state.placements.filter(p => p.id !== currentId),
+          ...state.placements.filter(p => p.id === currentId)
+        ];
+    ordered.forEach((placement) => {
+      const index = state.placements.findIndex(p => p.id === placement.id);
+      renderPin(placement, index);
+    });
   }
 
   function render() {
@@ -203,10 +424,12 @@ const STORE_KEY = 'map-tagger-state';
       mapWrapper.style.display = 'inline-block';
       placeholder.style.display = 'none';
       zoomControls.style.display = 'flex';
+      if (routeFocusPanel) routeFocusPanel.style.display = 'block';
     } else {
       mapWrapper.style.display = 'none';
       placeholder.style.display = 'block';
       zoomControls.style.display = 'none';
+      if (routeFocusPanel) routeFocusPanel.style.display = 'none';
     }
 
     // CSS zoom scales both the image and its absolutely-positioned pins while
@@ -225,10 +448,16 @@ const STORE_KEY = 'map-tagger-state';
   function renderPin(placement, index) {
     const task = taskByCode(placement.taskCode);
     const pin = document.createElement('div');
-    const isDone = doneSet.has(placement.taskCode);
-    const currentPlacement = state.placements.find(p => !doneSet.has(p.taskCode));
+    let isDone = false;
+    if (placement.customMarker) {
+      isDone = doneSet.has('custom-' + placement.id);
+    } else if (placement.taskCode) {
+      isDone = doneSet.has(placement.taskCode);
+    }
+    const currentPlacement = getCurrentPlacement();
     const isCurrent = currentPlacement && currentPlacement.id === placement.id;
-    pin.className = 'pin' + (isDone ? ' done' : '') + (isCurrent ? ' current' : '');
+    const isCustom = !!placement.customMarker;
+    pin.className = 'pin' + (isDone ? ' done' : '') + (isCurrent ? ' current' : '') + (isCustom ? ' custom-marker' : '');
     pin.dataset.id = placement.id;
     pin.setAttribute('role', 'button');
     pin.setAttribute('tabindex', '0');
@@ -251,7 +480,7 @@ const STORE_KEY = 'map-tagger-state';
 
     const label = document.createElement('div');
     label.className = 'pin-label';
-    label.textContent = task ? task.code : '#' + (index + 1);
+    label.textContent = isCustom ? '' : (task ? task.code : '#' + (index + 1));
     pin.appendChild(label);
 
     const openDetails = (e) => {
@@ -295,7 +524,10 @@ const STORE_KEY = 'map-tagger-state';
   function renderRouteList() {
     routeList.innerHTML = '';
     routeCount.textContent = state.placements.length;
-    const completedRouteTasks = state.placements.filter(p => p.taskCode && doneSet.has(p.taskCode)).length;
+    const completedRouteTasks = state.placements.filter(p => {
+      if (p.customMarker) return doneSet.has('custom-' + p.id);
+      return p.taskCode && doneSet.has(p.taskCode);
+    }).length;
     routeProgress.textContent = state.placements.length > 0 ? completedRouteTasks + ' / ' + state.placements.length + ' complete' : '';
     // compute points summary
     let totalPoints = 0, completedPoints = 0;
@@ -307,27 +539,45 @@ const STORE_KEY = 'map-tagger-state';
     });
     routeProgress.textContent = state.placements.length > 0 ?
       (completedRouteTasks + ' / ' + state.placements.length + ' complete • ' + completedPoints + ' / ' + totalPoints + ' pts') : '';
-    const currentPlacement = state.placements.find(p => !doneSet.has(p.taskCode));
+    const currentPlacement = getCurrentPlacement();
     const selectedPlacementId = openInfoPlacementId;
 
     if (state.placements.length === 0) {
       emptyRouteMsg.style.display = 'block';
+      updateRouteFocusPanel();
       return;
     }
     emptyRouteMsg.style.display = 'none';
 
     state.placements.forEach((placement, index) => {
       const task = taskByCode(placement.taskCode);
-      const isDone = task && doneSet.has(task.code);
+      let isDone = false;
+      if (placement.customMarker) {
+        isDone = doneSet.has('custom-' + placement.id);
+      } else if (task) {
+        isDone = doneSet.has(task.code);
+      }
+      const isCustom = !!placement.customMarker;
       const li = document.createElement('li');
       li.className = 'route-item' + (isDone ? ' done' : '');
       if (currentPlacement && currentPlacement.id === placement.id) li.classList.add('current-route');
       if (selectedPlacementId === placement.id) li.classList.add('route-item-selected');
 
+      const numCol = document.createElement('div');
+      numCol.className = 'route-num-col';
+
+      const orderNum = document.createElement('span');
+      orderNum.className = 'route-order';
+      orderNum.textContent = '#' + (index + 1);
+      numCol.appendChild(orderNum);
+
       const num = document.createElement('span');
       num.className = 'route-num';
-      num.textContent = task ? task.code : '#' + (index + 1);
-      li.appendChild(num);
+      num.textContent = isCustom ? '' : (task ? task.code : '?');
+      if (isCustom) num.classList.add('route-num-custom');
+      numCol.appendChild(num);
+
+      li.appendChild(numCol);
 
       li.addEventListener('click', (e) => {
         // don't treat clicks on controls as selection
@@ -345,15 +595,24 @@ const STORE_KEY = 'map-tagger-state';
       const done = document.createElement('input');
       done.type = 'checkbox';
       done.className = 'route-done';
-      done.checked = !!(task && doneSet.has(task.code));
+      let doneChecked = false;
+      if (placement.customMarker) {
+        doneChecked = doneSet.has('custom-' + placement.id);
+      } else if (task) {
+        doneChecked = doneSet.has(task.code);
+      }
+      done.checked = doneChecked;
       done.title = 'Mark task complete';
       done.setAttribute('aria-hidden', 'true');
       done.style.position = 'absolute';
       done.style.opacity = '0';
       done.style.pointerEvents = 'none';
       done.onchange = () => {
-        if (!task) return;
-        if (done.checked) doneSet.add(task.code); else doneSet.delete(task.code);
+        if (placement.customMarker) {
+          if (done.checked) doneSet.add('custom-' + placement.id); else doneSet.delete('custom-' + placement.id);
+        } else if (task) {
+          if (done.checked) doneSet.add(task.code); else doneSet.delete(task.code);
+        }
         saveDoneCookie();
         renderTasks();
         renderRouteList();
@@ -361,20 +620,24 @@ const STORE_KEY = 'map-tagger-state';
       };
 
       const title = document.createElement('div');
-      title.className = 'route-title' + (task && doneSet.has(task.code) ? ' done' : '');
-      title.textContent = task ? task.text : '(unknown task)';
-      title.title = task ? task.text : '';
+      let titleDone = false;
+      if (placement.customMarker) {
+        titleDone = doneSet.has('custom-' + placement.id);
+      } else if (task) {
+        titleDone = doneSet.has(task.code);
+      }
+      title.className = 'route-title' + (titleDone ? ' done' : '');
+      title.textContent = isCustom ? 'Custom marker' : (task ? task.text : '(unknown task)');
+      title.title = isCustom ? 'Custom marker' : (task ? task.text : '');
       title.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (task) {
-          done.checked = !done.checked;
-          done.dispatchEvent(new Event('change', { bubbles: true }));
-        }
+        done.checked = !done.checked;
+        done.dispatchEvent(new Event('change', { bubbles: true }));
       });
 
       const points = document.createElement('div');
-      points.className = 'route-points' + (task ? ' task-tier ' + task.tier.toLowerCase() : '');
-      points.textContent = task ? taskPoints(task) + ' pts' : '';
+      points.className = 'route-points' + (task ? ' task-tier ' + task.tier.toLowerCase() : (isCustom ? ' task-tier custom' : ''));
+      points.textContent = task ? taskPoints(task) + ' pts' : '0 pts';
 
       titleRow.append(done, title, points);
       body.appendChild(titleRow);
@@ -432,6 +695,7 @@ const STORE_KEY = 'map-tagger-state';
     });
     // route-list notes are simple spans; no resizing required here
     initRouteListSorting();
+    updateRouteFocusPanel();
   }
 
   function initRouteListSorting() {
@@ -506,6 +770,7 @@ const STORE_KEY = 'map-tagger-state';
       return;
     }
     placingTaskCode = taskCode;
+    placingCustomMarker = false;
     tabBtnMap.click();
     mapWrapper.classList.add('placing');
     const task = taskByCode(taskCode);
@@ -522,7 +787,73 @@ const STORE_KEY = 'map-tagger-state';
     } catch (err) { dragPreviewPin = null; }
   }
 
+  function beginCustomMarkerPlacement() {
+    placingTaskCode = null;
+    placingCustomMarker = true;
+    tabBtnMap.click();
+    mapWrapper.classList.add('placing');
+    setStatus('Click the map to place a custom marker. Press Escape to cancel.');
+    try {
+      if (dragPreviewPin) dragPreviewPin.remove();
+      const preview = document.createElement('div');
+      preview.className = 'pin drag-preview custom-marker';
+      const pdot = document.createElement('div'); pdot.className = 'pin-dot'; preview.appendChild(pdot);
+      const plabel = document.createElement('div'); plabel.className = 'pin-label'; preview.appendChild(plabel);
+      mapWrapper.appendChild(preview);
+      dragPreviewPin = preview;
+    } catch (err) { dragPreviewPin = null; }
+  }
+
+  function cancelPlacementMode() {
+    placingTaskCode = null;
+    placingCustomMarker = false;
+    mapWrapper.classList.remove('placing');
+    if (dragPreviewPin) { dragPreviewPin.remove(); dragPreviewPin = null; }
+    hideMapContextMenu();
+  }
+
+  function hideMapContextMenu() {
+    if (mapContextMenu) {
+      mapContextMenu.hidden = true;
+      mapContextMenu.innerHTML = '';
+    }
+  }
+
+  function showMapContextMenu(x, y) {
+    if (!mapContextMenu) return;
+    mapContextMenu.innerHTML = '';
+    const button = document.createElement('button');
+    button.textContent = 'Create marker';
+    button.onclick = () => {
+      hideMapContextMenu();
+      const rect = mapImage.getBoundingClientRect();
+      const px = (x - rect.left) / state.zoom;
+      const py = (y - rect.top) / state.zoom;
+      state.placements.push({
+        id: nextId++,
+        taskCode: null,
+        customMarker: true,
+        x: Math.round(px),
+        y: Math.round(py),
+        note: ''
+      });
+      render();
+      renderTasks();
+      saveState();
+      setStatus('Custom marker placed.');
+    };
+    mapContextMenu.appendChild(button);
+    mapContextMenu.style.left = x + 'px';
+    mapContextMenu.style.top = y + 'px';
+    mapContextMenu.hidden = false;
+  }
+
   const PAN_THRESHOLD = 6;
+
+  addCustomMarkerBtn.onclick = () => {
+    cancelPlacementMode();
+    beginCustomMarkerPlacement();
+  };
 
   mapWrapper.addEventListener('mousedown', (e) => {
     if (dragTarget !== null || placingTaskCode !== null) return;
@@ -537,9 +868,16 @@ const STORE_KEY = 'map-tagger-state';
     mapWrapper.classList.add('panning');
   });
 
+  mapWrapper.addEventListener('contextmenu', (e) => {
+    if (dragTarget !== null || placingTaskCode !== null || placingCustomMarker) return;
+    e.preventDefault();
+    showMapContextMenu(e.clientX, e.clientY);
+  });
+
   mapWrapper.addEventListener('click', (e) => {
     if (dragTarget !== null) return;
-    if (placingTaskCode === null) {
+    hideMapContextMenu();
+    if (placingTaskCode === null && !placingCustomMarker) {
       if (panMoved) { panMoved = false; return; }
       if (!e.target.closest('.pin')) {
         document.querySelectorAll('.pin.selected').forEach(p => p.classList.remove('selected'));
@@ -554,6 +892,26 @@ const STORE_KEY = 'map-tagger-state';
     const rect = mapImage.getBoundingClientRect();
     const x = (e.clientX - rect.left) / state.zoom;
     const y = (e.clientY - rect.top) / state.zoom;
+
+    if (placingCustomMarker) {
+      placingCustomMarker = false;
+      mapWrapper.classList.remove('placing');
+      state.placements.push({
+        id: nextId++,
+        taskCode: null,
+        customMarker: true,
+        x: Math.round(x),
+        y: Math.round(y),
+        note: ''
+      });
+      render();
+      renderTasks();
+      saveState();
+      setStatus('Custom marker placed.');
+      if (dragPreviewPin) { dragPreviewPin.remove(); dragPreviewPin = null; }
+      return;
+    }
+
     const taskCode = placingTaskCode;
     placingTaskCode = null;
     mapWrapper.classList.remove('placing');
@@ -634,7 +992,7 @@ const STORE_KEY = 'map-tagger-state';
 
   document.addEventListener('mousemove', (e) => {
     // update preview pin position while in placing mode
-    if (placingTaskCode && dragPreviewPin) {
+    if ((placingTaskCode || placingCustomMarker) && dragPreviewPin) {
       const rect = mapImage.getBoundingClientRect();
       const x = (e.clientX - rect.left) / state.zoom;
       const y = (e.clientY - rect.top) / state.zoom;
@@ -660,6 +1018,14 @@ const STORE_KEY = 'map-tagger-state';
     if (el) {
       el.style.left = placement.x + 'px';
       el.style.top = placement.y + 'px';
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && (placingTaskCode !== null || placingCustomMarker || mapContextMenu && !mapContextMenu.hidden)) {
+      e.preventDefault();
+      cancelPlacementMode();
+      hideMapContextMenu();
     }
   });
 
@@ -905,7 +1271,7 @@ const STORE_KEY = 'map-tagger-state';
     const tier = tierFilter.value;
     const searchQuery = taskSearch.value.trim().toLowerCase();
     taskListEl.innerHTML = '';
-    const currentPlacement = state.placements.find(p => !doneSet.has(p.taskCode));
+    const currentPlacement = getCurrentPlacement();
 
     let doneCount = 0;
     let totalCount = 0;
@@ -945,10 +1311,6 @@ const STORE_KEY = 'map-tagger-state';
       textSpan.textContent = task.text;
       textSpan.title = task.text;
 
-      const tierSpan = document.createElement('span');
-      tierSpan.className = 'task-tier ' + task.tier.toLowerCase();
-      tierSpan.textContent = task.tier;
-
       li.draggable = true;
       li.addEventListener('dragstart', (e) => {
         if (!task.code) return;
@@ -982,6 +1344,16 @@ const STORE_KEY = 'map-tagger-state';
       });
 
       const placement = state.placements.find(p => p.taskCode === task.code);
+      const isPlaced = !!placement;
+      if (isPlaced) li.classList.add('task-placed');
+
+      const difficultyRow = document.createElement('div');
+      difficultyRow.className = 'task-difficulty-row';
+      const tierSpan = document.createElement('span');
+      tierSpan.className = 'task-tier ' + task.tier.toLowerCase();
+      tierSpan.textContent = task.tier;
+      difficultyRow.appendChild(tierSpan);
+
       const placeBtn = document.createElement('button');
       placeBtn.className = 'place-task-btn';
       placeBtn.textContent = placement ? 'Focus' : 'Place';
@@ -1007,7 +1379,7 @@ const STORE_KEY = 'map-tagger-state';
         if (pin) pin.classList.remove('highlighted');
       });
 
-      li.append(cb, codeSpan, textSpan, tierSpan, placeBtn);
+      li.append(cb, codeSpan, textSpan, difficultyRow, placeBtn);
       taskListEl.appendChild(li);
     });
     taskProgress.textContent = 'Completed: ' + doneCount + ' • Showing: ' + totalCount;
@@ -1037,6 +1409,7 @@ const STORE_KEY = 'map-tagger-state';
       saveDoneCookie();
       renderTasks();
       renderRouteList();
+      renderPinsOnly();
     });
   };
 
