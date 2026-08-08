@@ -57,11 +57,13 @@ const STORE_KEY = 'map-tagger-state';
   const routeFocusCurrentTier = document.getElementById('routeFocusCurrentTier');
   const routeFocusCurrentPoints = document.getElementById('routeFocusCurrentPoints');
   const routeFocusCurrentText = document.getElementById('routeFocusCurrentText');
+  const routeFocusCurrentNote = document.getElementById('routeFocusCurrentNote');
   const routeFocusCurrentDoneBtn = document.getElementById('routeFocusCurrentDoneBtn');
   const routeFocusNextCode = document.getElementById('routeFocusNextCode');
   const routeFocusNextTier = document.getElementById('routeFocusNextTier');
   const routeFocusNextPoints = document.getElementById('routeFocusNextPoints');
   const routeFocusNextText = document.getElementById('routeFocusNextText');
+  const routeFocusNextNote = document.getElementById('routeFocusNextNote');
 
   function setStatus(msg) { statusEl.textContent = msg; }
 
@@ -105,6 +107,18 @@ const STORE_KEY = 'map-tagger-state';
     return { code: order + task.code, text: task.text, task };
   }
 
+  function setRouteFocusNote(noteEl, placement) {
+    if (!noteEl) return;
+    const note = placement && placement.note ? String(placement.note).trim() : '';
+    if (note) {
+      noteEl.textContent = note;
+      noteEl.hidden = false;
+    } else {
+      noteEl.textContent = '';
+      noteEl.hidden = true;
+    }
+  }
+
   function updateRouteFocusPanel() {
     if (!routeFocusPanel) return;
     const current = getCurrentPlacement();
@@ -124,6 +138,7 @@ const STORE_KEY = 'map-tagger-state';
       routeFocusCurrentCode.textContent = currentLabel.code;
       setRouteFocusMeta(routeFocusCurrentTier, routeFocusCurrentPoints, currentLabel.task);
       routeFocusCurrentText.textContent = currentLabel.text;
+      setRouteFocusNote(routeFocusCurrentNote, current);
       routeFocusEmpty.hidden = true;
       
       // Setup done button for current task
@@ -148,6 +163,7 @@ const STORE_KEY = 'map-tagger-state';
       routeFocusNextCode.textContent = nextLabel.code;
       setRouteFocusMeta(routeFocusNextTier, routeFocusNextPoints, nextLabel.task);
       routeFocusNextText.textContent = nextLabel.text;
+      setRouteFocusNote(routeFocusNextNote, next);
     } else {
       routeFocusNext.hidden = true;
     }
@@ -409,6 +425,7 @@ const STORE_KEY = 'map-tagger-state';
       noteEl.remove();
     }
     requestAnimationFrame(() => autoResizeTextarea(taskInfoNote));
+    updateRouteFocusPanel();
     saveState();
   });
 
@@ -441,7 +458,7 @@ const STORE_KEY = 'map-tagger-state';
     const line = document.createElement('div');
     line.className = 'route-connector';
     line.style.left = current.x + 'px';
-    line.style.top = current.y-10 + 'px';
+    line.style.top = current.y + 'px';
     line.style.width = length + 'px';
     line.style.transform = 'rotate(' + angle + 'deg)';
     mapWrapper.insertBefore(line, mapImage.nextSibling);

@@ -247,7 +247,7 @@
   .route-connector {
     position: absolute;
     height: 0;
-    border-top: 2px dotted rgba(255,255,255,0.82);
+    border-top: 2px dashed rgba(255,255,255,0.35);
     transform-origin: 0 0;
     pointer-events: none;
     z-index: 5;
@@ -374,7 +374,7 @@
     margin-bottom: 4px;
   }
   .route-focus-current .route-focus-label { color: #57dc82; }
-  .route-focus-next .route-focus-label { color: #a970ff; }
+  .route-focus-next .route-focus-label { color: var(--text-dim); }
   .route-focus-head {
     display: flex;
     align-items: center;
@@ -411,6 +411,15 @@
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+  .route-focus-note {
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.35;
+    color: var(--text-dim);
+    font-style: italic;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
   .route-focus-done-btn {
     margin-top: 8px;
