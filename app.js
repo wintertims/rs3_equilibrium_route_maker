@@ -1294,6 +1294,11 @@ const STORE_KEY = 'map-tagger-state';
       cb.type = 'checkbox';
       cb.checked = isDone;
       cb.title = 'Mark task complete';
+      cb.setAttribute('aria-hidden', 'true');
+      cb.style.position = 'absolute';
+      cb.style.opacity = '0';
+      cb.style.pointerEvents = 'none';
+
       cb.onchange = () => {
         if (cb.checked) doneSet.add(task.code); else doneSet.delete(task.code);
         saveDoneCookie();

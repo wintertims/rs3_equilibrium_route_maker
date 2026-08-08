@@ -183,7 +183,9 @@
   }
   .pin.selected .pin-dot {
     box-shadow: 0 0 0 4px rgba(255,255,255,0.22), 0 0 14px rgba(255,255,255,0.65);
+    /* z-index: 40; */
   }
+  .pin.selected { z-index: 40; }
   .pin.custom-marker .pin-dot {
     background: #f0b96b;
     border-color: #fff;
@@ -426,6 +428,7 @@
     font-weight: 600;
     flex-shrink: 0;
     min-width: 28px;
+    font-size: 10px;
   }
   #taskList li .task-text { flex: 1; cursor: pointer; }
   #taskList li.done { background: rgba(57,199,106,0.1); }
