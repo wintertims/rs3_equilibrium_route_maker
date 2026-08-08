@@ -46,6 +46,7 @@ const STORE_KEY = 'map-tagger-state';
   let routeSorter = null;
   const routeCount = document.getElementById('routeCount');
   const routeProgress = document.getElementById('routeProgress');
+  const routeTaskProgress = document.getElementById('routeTaskProgress');
   const emptyRouteMsg = document.getElementById('empty-route-msg');
   const statusEl = document.getElementById('status');
   const zoomControls = document.getElementById('zoomControls');
@@ -591,6 +592,10 @@ const STORE_KEY = 'map-tagger-state';
     });
     routeProgress.textContent = state.placements.length > 0 ?
       (completedRouteTasks + ' / ' + state.placements.length + ' complete • ' + completedPoints + ' / ' + totalPoints + ' pts') : '';
+    const nonCustomPlacements = state.placements.filter(p => !p.customMarker && p.taskCode);
+    const completedNonCustomTasks = nonCustomPlacements.filter(p => doneSet.has(p.taskCode)).length;
+    routeTaskProgress.textContent = nonCustomPlacements.length > 0 ?
+      (completedNonCustomTasks + ' / ' + nonCustomPlacements.length + ' tasks complete (excl. custom markers)') : '';
     const currentPlacement = getCurrentPlacement();
     const selectedPlacementId = openInfoPlacementId;
 
