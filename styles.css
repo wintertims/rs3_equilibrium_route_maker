@@ -279,7 +279,7 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     box-shadow: 0 8px 28px rgba(0,0,0,0.45);
-    z-index: 100;
+    z-index: 4000;
     display: none;
     overflow: hidden;
   }
@@ -356,7 +356,7 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.45);
-    z-index: 100;
+    z-index: 4000;
     overflow: hidden;
   }
   .route-focus-item {
