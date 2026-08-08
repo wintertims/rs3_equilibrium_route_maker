@@ -143,7 +143,9 @@ const STORE_KEY = 'map-tagger-state';
     taskInfoTitle.textContent = '[' + task.code + '] ' + task.text;
     const routeIndex = state.placements.findIndex(p => p.id === placement.id);
     taskInfoListNumber.textContent = routeIndex >= 0 ? String(routeIndex + 1) : '—';
+    taskInfoRegion.textContent = task.region || 'Unknown';
     taskInfoTier.textContent = task.tier;
+    taskInfoTier.className = 'task-tier ' + (task.tier ? task.tier.toLowerCase() : '');
     taskInfoPoints.textContent = taskPoints(task);
     taskInfoNote.value = placement.note || '';
     taskInfoNote.readOnly = !!openInfoReadOnly;
@@ -316,14 +318,15 @@ const STORE_KEY = 'map-tagger-state';
 
     state.placements.forEach((placement, index) => {
       const task = taskByCode(placement.taskCode);
+      const isDone = task && doneSet.has(task.code);
       const li = document.createElement('li');
-      li.className = 'route-item';
+      li.className = 'route-item' + (isDone ? ' done' : '');
       if (currentPlacement && currentPlacement.id === placement.id) li.classList.add('current-route');
       if (selectedPlacementId === placement.id) li.classList.add('route-item-selected');
 
       const num = document.createElement('span');
       num.className = 'route-num';
-      num.textContent = index + 1;
+      num.textContent = task ? task.code : '#' + (index + 1);
       li.appendChild(num);
 
       li.addEventListener('click', (e) => {
@@ -344,6 +347,10 @@ const STORE_KEY = 'map-tagger-state';
       done.className = 'route-done';
       done.checked = !!(task && doneSet.has(task.code));
       done.title = 'Mark task complete';
+      done.setAttribute('aria-hidden', 'true');
+      done.style.position = 'absolute';
+      done.style.opacity = '0';
+      done.style.pointerEvents = 'none';
       done.onchange = () => {
         if (!task) return;
         if (done.checked) doneSet.add(task.code); else doneSet.delete(task.code);
@@ -355,15 +362,18 @@ const STORE_KEY = 'map-tagger-state';
 
       const title = document.createElement('div');
       title.className = 'route-title' + (task && doneSet.has(task.code) ? ' done' : '');
-      title.textContent = task ? '[' + task.code + '] ' + task.text : '(unknown task)';
+      title.textContent = task ? task.text : '(unknown task)';
       title.title = task ? task.text : '';
       title.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (task) done.click();
+        if (task) {
+          done.checked = !done.checked;
+          done.dispatchEvent(new Event('change', { bubbles: true }));
+        }
       });
 
       const points = document.createElement('div');
-      points.className = 'route-points';
+      points.className = 'route-points' + (task ? ' task-tier ' + task.tier.toLowerCase() : '');
       points.textContent = task ? taskPoints(task) + ' pts' : '';
 
       titleRow.append(done, title, points);
@@ -415,7 +425,8 @@ const STORE_KEY = 'map-tagger-state';
         saveState();
       };
 
-      actions.append(up, down, center, remove);
+      actions.append(remove);
+      // actions.append(up, down, center, remove);
       li.appendChild(actions);
       routeList.appendChild(li);
     });
