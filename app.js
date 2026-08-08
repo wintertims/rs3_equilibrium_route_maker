@@ -750,6 +750,7 @@ const STORE_KEY = 'map-tagger-state';
   // ---------- Task checklist ----------
   const regionChecks = document.getElementById('regionChecks');
   const tierFilter = document.getElementById('tierFilter');
+  const taskSearch = document.getElementById('taskSearch');
   const taskListEl = document.getElementById('taskList');
   const taskProgress = document.getElementById('taskProgress');
 
@@ -781,6 +782,7 @@ const STORE_KEY = 'map-tagger-state';
   function renderTasks() {
     const selected = new Set(state.selectedRegions || REGION_CODES.map(([code]) => code));
     const tier = tierFilter.value;
+    const searchQuery = taskSearch.value.trim().toLowerCase();
     taskListEl.innerHTML = '';
     const currentPlacement = state.placements.find(p => !doneSet.has(p.taskCode));
 
@@ -789,6 +791,10 @@ const STORE_KEY = 'map-tagger-state';
     TASKS.forEach(task => {
       if (!selected.has(task.code.replace(/\d+$/, ''))) return;
       if (tier !== '__all__' && task.tier !== tier) return;
+      if (searchQuery) {
+        const text = (task.code + ' ' + task.text).toLowerCase();
+        if (!text.includes(searchQuery)) return;
+      }
       const isDone = doneSet.has(task.code);
       if (isDone) doneCount++;
       totalCount++;
@@ -866,6 +872,7 @@ const STORE_KEY = 'map-tagger-state';
   }
 
   tierFilter.onchange = renderTasks;
+  taskSearch.addEventListener('input', renderTasks);
 
   document.getElementById('selectAllRegionsBtn').onclick = () => {
     state.selectedRegions = REGION_CODES.map(([code]) => code);
