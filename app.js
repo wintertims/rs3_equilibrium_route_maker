@@ -23,7 +23,7 @@ const STORE_KEY = 'map-tagger-state';
   let panStartX = 0, panStartY = 0, panScrollLeft = 0, panScrollTop = 0;
   let placingTaskCode = null;
   let placingCustomMarker = false;
-  let customMarkerInsertIndex = null;
+  let placementInsertIndex = null;
 
   const mapArea = document.getElementById('mapArea');
   const mapWrapper = document.getElementById('mapWrapper');
@@ -39,6 +39,11 @@ const STORE_KEY = 'map-tagger-state';
   const taskInfoRemoveBtn = document.getElementById('taskInfoRemoveBtn');
   const addCustomMarkerBtn = document.getElementById('addCustomMarkerBtn');
   const mapContextMenu = document.getElementById('mapContextMenu');
+  const taskInsertPopup = document.getElementById('taskInsertPopup');
+  const taskInsertSearch = document.getElementById('taskInsertSearch');
+  const taskInsertResults = document.getElementById('taskInsertResults');
+  const taskInsertEmpty = document.getElementById('taskInsertEmpty');
+  let taskInsertPendingIndex = null;
   let openInfoPlacementId = null;
   let openInfoReadOnly = false;
   const placeholder = document.getElementById('placeholder');
@@ -755,7 +760,17 @@ const STORE_KEY = 'map-tagger-state';
         beginCustomMarkerPlacement(index + 1);
       };
 
-      actions.append(addBelow, remove);
+      const insertTask = document.createElement('button');
+      insertTask.textContent = '🔎';
+      insertTask.className = 'route-insert-task-btn';
+      insertTask.title = 'Insert an existing task beneath this one';
+      insertTask.onclick = (e) => {
+        e.stopPropagation();
+        cancelPlacementMode();
+        showTaskInsertPopup(insertTask, index + 1);
+      };
+
+      actions.append(insertTask, addBelow, remove);
       // actions.append(up, down, center, remove);
       li.appendChild(actions);
       routeList.appendChild(li);
@@ -773,9 +788,13 @@ const STORE_KEY = 'map-tagger-state';
       ghostClass: 'route-item-ghost',
       scroll: true,
       forceAutoScrollFallback: true,
-      scrollSensitivity: 120,
-      scrollSpeed: 40,
+      scrollSensitivity: 60,
+      scrollSpeed: 30,
       bubbleScroll: true,
+      onStart: () => {
+        hideTaskInsertPopup();
+        hideMapContextMenu();
+      },
       onEnd: (evt) => {
         if (evt.oldIndex === evt.newIndex || evt.oldIndex == null || evt.newIndex == null) return;
         const dragged = state.placements[evt.oldIndex];
@@ -838,13 +857,14 @@ const STORE_KEY = 'map-tagger-state';
     });
   }
 
-  function beginPlaceTask(taskCode) {
+  function beginPlaceTask(taskCode, insertIndex) {
     if (state.placements.some(p => p.taskCode === taskCode)) {
       setStatus('That task is already on your route.');
       return;
     }
     placingTaskCode = taskCode;
     placingCustomMarker = false;
+    placementInsertIndex = typeof insertIndex === 'number' ? insertIndex : null;
     tabBtnMap.click();
     mapWrapper.classList.add('placing');
     const task = taskByCode(taskCode);
@@ -864,7 +884,7 @@ const STORE_KEY = 'map-tagger-state';
   function beginCustomMarkerPlacement(insertIndex) {
     placingTaskCode = null;
     placingCustomMarker = true;
-    customMarkerInsertIndex = typeof insertIndex === 'number' ? insertIndex : null;
+    placementInsertIndex = typeof insertIndex === 'number' ? insertIndex : null;
     tabBtnMap.click();
     mapWrapper.classList.add('placing');
     setStatus('Click the map to place a custom marker. Press Escape to cancel.');
@@ -882,10 +902,11 @@ const STORE_KEY = 'map-tagger-state';
   function cancelPlacementMode() {
     placingTaskCode = null;
     placingCustomMarker = false;
-    customMarkerInsertIndex = null;
+    placementInsertIndex = null;
     mapWrapper.classList.remove('placing');
     if (dragPreviewPin) { dragPreviewPin.remove(); dragPreviewPin = null; }
     hideMapContextMenu();
+    hideTaskInsertPopup();
   }
 
   function hideMapContextMenu() {
@@ -894,6 +915,78 @@ const STORE_KEY = 'map-tagger-state';
       mapContextMenu.innerHTML = '';
     }
   }
+
+  function hideTaskInsertPopup() {
+    if (!taskInsertPopup) return;
+    taskInsertPopup.hidden = true;
+    taskInsertResults.innerHTML = '';
+    taskInsertSearch.value = '';
+    taskInsertPendingIndex = null;
+  }
+
+  function renderTaskInsertResults(query) {
+    if (!taskInsertResults) return;
+    const q = query.trim().toLowerCase();
+    const placedCodes = new Set(state.placements.map(p => p.taskCode).filter(Boolean));
+    const matches = TASKS.filter(task => {
+      if (placedCodes.has(task.code)) return false;
+      if (!q) return true;
+      return (task.code + ' ' + task.text).toLowerCase().includes(q);
+    }).slice(0, 60);
+
+    taskInsertResults.innerHTML = '';
+    matches.forEach(task => {
+      const li = document.createElement('li');
+      const codeSpan = document.createElement('span');
+      codeSpan.className = 'task-insert-code';
+      codeSpan.textContent = task.code;
+      const textSpan = document.createElement('span');
+      textSpan.className = 'task-insert-text';
+      textSpan.textContent = task.text;
+      li.append(codeSpan, textSpan);
+      li.onclick = () => {
+        const insertIndex = taskInsertPendingIndex;
+        hideTaskInsertPopup();
+        cancelPlacementMode();
+        beginPlaceTask(task.code, insertIndex);
+      };
+      taskInsertResults.appendChild(li);
+    });
+    taskInsertEmpty.hidden = matches.length > 0;
+  }
+
+  function showTaskInsertPopup(anchorEl, insertIndex) {
+    if (!taskInsertPopup) return;
+    hideMapContextMenu();
+    taskInsertPendingIndex = insertIndex;
+    const rect = anchorEl.getBoundingClientRect();
+    taskInsertPopup.hidden = false;
+    renderTaskInsertResults('');
+    // Position after showing so we can measure actual size, then clamp to viewport.
+    const popupRect = taskInsertPopup.getBoundingClientRect();
+    let left = rect.right + 6;
+    let top = rect.top;
+    if (left + popupRect.width > window.innerWidth - 8) {
+      left = Math.max(8, rect.left - popupRect.width - 6);
+    }
+    if (top + popupRect.height > window.innerHeight - 8) {
+      top = Math.max(8, window.innerHeight - popupRect.height - 8);
+    }
+    taskInsertPopup.style.left = left + 'px';
+    taskInsertPopup.style.top = top + 'px';
+    taskInsertSearch.focus();
+  }
+
+  if (taskInsertSearch) {
+    taskInsertSearch.addEventListener('input', () => renderTaskInsertResults(taskInsertSearch.value));
+  }
+
+  document.addEventListener('mousedown', (e) => {
+    if (!taskInsertPopup || taskInsertPopup.hidden) return;
+    if (taskInsertPopup.contains(e.target)) return;
+    if (e.target.closest('.route-insert-task-btn')) return;
+    hideTaskInsertPopup();
+  });
 
   function showMapContextMenu(x, y) {
     if (!mapContextMenu) return;
@@ -980,10 +1073,10 @@ const STORE_KEY = 'map-tagger-state';
         y: Math.round(y),
         note: ''
       };
-      if (customMarkerInsertIndex !== null) {
-        const insertAt = Math.min(customMarkerInsertIndex, state.placements.length);
+      if (placementInsertIndex !== null) {
+        const insertAt = Math.min(placementInsertIndex, state.placements.length);
         state.placements.splice(insertAt, 0, marker);
-        customMarkerInsertIndex = null;
+        placementInsertIndex = null;
       } else {
         state.placements.push(marker);
       }
@@ -999,13 +1092,20 @@ const STORE_KEY = 'map-tagger-state';
     placingTaskCode = null;
     mapWrapper.classList.remove('placing');
 
-    state.placements.push({
+    const newPlacement = {
       id: nextId++,
       taskCode,
       x: Math.round(x),
       y: Math.round(y),
       note: ''
-    });
+    };
+    if (placementInsertIndex !== null) {
+      const insertAt = Math.min(placementInsertIndex, state.placements.length);
+      state.placements.splice(insertAt, 0, newPlacement);
+      placementInsertIndex = null;
+    } else {
+      state.placements.push(newPlacement);
+    }
     render();
     renderTasks();
     saveState();
@@ -1106,10 +1206,11 @@ const STORE_KEY = 'map-tagger-state';
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && (placingTaskCode !== null || placingCustomMarker || mapContextMenu && !mapContextMenu.hidden)) {
+    if (e.key === 'Escape' && (placingTaskCode !== null || placingCustomMarker || (mapContextMenu && !mapContextMenu.hidden) || (taskInsertPopup && !taskInsertPopup.hidden))) {
       e.preventDefault();
       cancelPlacementMode();
       hideMapContextMenu();
+      hideTaskInsertPopup();
     }
   });
 
@@ -1160,6 +1261,7 @@ const STORE_KEY = 'map-tagger-state';
 
   mapArea.addEventListener('wheel', (e) => {
     if (!state.imageDataUrl) return;
+    if (e.target.closest('.task-insert-popup') || e.target.closest('.map-context-menu')) return;
     e.preventDefault();
     const direction = e.deltaY < 0 ? 1 : -1;
     setZoom(state.zoom + direction * 0.1, e.clientX, e.clientY);

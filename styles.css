@@ -247,7 +247,7 @@
   .route-connector {
     position: absolute;
     height: 0;
-    border-top: 2px dotted rgba(255,255,255,0.85);
+    border-top: 2px dashed rgba(255,255,255,0.35);
     transform-origin: 0 0;
     pointer-events: none;
     z-index: 5;
@@ -279,7 +279,7 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     box-shadow: 0 8px 28px rgba(0,0,0,0.45);
-    z-index: 4000;
+    z-index: 100;
     display: none;
     overflow: hidden;
   }
@@ -356,7 +356,7 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     box-shadow: 0 8px 24px rgba(0,0,0,0.45);
-    z-index: 4000;
+    z-index: 100;
     overflow: hidden;
   }
   .route-focus-item {
@@ -716,6 +716,54 @@
     padding: 6px 8px;
     font-size: 12px;
     text-align: left;
+  }
+  .task-insert-popup {
+    position: fixed;
+    z-index: 130;
+    width: 240px;
+    max-height: 320px;
+    display: flex;
+    flex-direction: column;
+    background: rgba(28,28,28,0.98);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 8px 18px rgba(0,0,0,0.35);
+    padding: 6px;
+  }
+  .task-insert-popup[hidden] { display: none; }
+  .task-insert-popup input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 6px;
+  }
+  #taskInsertResults {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  #taskInsertResults li {
+    padding: 5px 6px;
+    font-size: 12px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  #taskInsertResults li:hover { background: rgba(255,255,255,0.08); }
+  #taskInsertResults li .task-insert-code {
+    color: var(--accent);
+    font-weight: 600;
+    margin-right: 4px;
+  }
+  #taskInsertResults li .task-insert-text {
+    color: var(--text-dim);
+  }
+  .task-insert-empty {
+    padding: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+    text-align: center;
   }
   .route-item-ghost {
     opacity: 0.4;
